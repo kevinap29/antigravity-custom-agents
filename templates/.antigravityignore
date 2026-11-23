@@ -1,0 +1,55 @@
+# ============================================================
+# Antigravity / AI Context Ignore Rules (Token Saver)
+# Salin file ini ke root proyek Anda sebagai .antigravityignore
+# ============================================================
+
+# .NET Build & Package Outputs
+bin/
+obj/
+packages/
+TestResults/
+PublishProfiles/
+*.user
+*.suo
+*.cache
+
+# Node.js / SvelteKit / Frontend Build Outputs
+node_modules/
+.svelte-kit/
+dist/
+build/
+.output/
+.next/
+.nuxt/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Minified & Generated Assets
+*.min.js
+*.min.css
+*.map
+
+# Logs, Temp & Backups
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.bak.*
+
+# IDE & OS Metadata
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# SQLite Runtime & Binary DB Files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal

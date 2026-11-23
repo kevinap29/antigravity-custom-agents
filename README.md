@@ -63,9 +63,17 @@ antigravity-custom-agents/
 │       ├── plugin.json         # Metadata plugin RTK
 │       ├── hooks.json          # PreToolUse hook (rtk hook antigravity)
 │       └── rules/AGENTS.md     # Aturan penggunaan & recovery output RTK
+├── templates/                  # Starter template untuk proyek tim
+│   ├── .antigravityignore      # Ignore rule hemat token (bin/, obj/, node_modules/, dll.)
+│   └── AGENTS.md               # Template instruksi & konvensi proyek
+├── CHEATSHEET.md               # Contoh prompt nyata untuk memicu tiap subagent
+├── mcp_config.example.json     # Contoh konfigurasi MCP server (Context7, fetch, sqlite)
 ├── GEMINI.md                   # Global Developer Profile & Coding Guardrails
 ├── install.ps1                 # Installer otomatis Windows (PowerShell)
 ├── install.sh                  # Installer otomatis Linux / macOS (Bash)
+├── verify.ps1 / verify.sh      # Health-check seluruh komponen terpasang
+├── update.ps1 / update.sh      # Sinkronisasi & update bundle ke ~/.gemini
+├── uninstall.ps1 / uninstall.sh# Rollback aman hanya untuk komponen bundle
 ├── LICENSE                     # MIT License
 ├── .gitignore
 └── README.md                   # Dokumentasi ini
@@ -179,6 +187,59 @@ Pastikan struktur akhir di direktori `.gemini` Anda terlihat seperti ini:
         ├── frontend-mobile-patterns/SKILL.md
         └── portainer-harbor-deploy/SKILL.md
 ```
+
+---
+
+## ✅ Verifikasi, Update & Rollback
+
+### 1. Health-Check Instalasi (`verify`)
+
+Pastikan seluruh 9 agent, 3 skill, 3 file plugin RTK, binary `rtk`, dan `GEMINI.md` terpasang sehat:
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\verify.ps1
+```
+```bash
+# macOS / Linux
+bash verify.sh
+```
+
+### 2. Sinkronisasi / Update Bundle (`update`)
+
+Tarik pembaruan terbaru dari Git (bila via `git clone`), salin ulang ke `~/.gemini/`, dan jalankan health-check otomatis (mempertahankan `GEMINI.md` lokal secara default):
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\update.ps1
+```
+```bash
+# macOS / Linux
+bash update.sh
+```
+
+### 3. Rollback / Uninstall (`uninstall`)
+
+Menghapus **hanya** 9 agent bundle, 3 skill bundle, dan plugin RTK secara idempoten tanpa menyentuh `GEMINI.md` maupun agent/skill pribadi Anda:
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+```bash
+# macOS / Linux
+bash uninstall.sh
+```
+
+---
+
+## 🧩 Starter Templates, MCP & Cheatsheet
+
+- **Contoh Prompt Nyata ([CHEATSHEET.md](CHEATSHEET.md)):** Berisi 6 skenario siap pakai untuk memicu `sdlc-team-lead`, `dotnet-webforms-dev`, `db-data-engineer`, `devops-git-ops`, `qa-code-reviewer`, `pr-review-fixer`, dan `ui-prototyper`.
+- **Template Proyek Tim (`templates/`):**
+  - Salin `templates/.antigravityignore` ke root proyek tim sebagai `.antigravityignore` agar folder build (`bin/`, `obj/`, `node_modules/`, `.svelte-kit/`, `*.db-wal`, dll.) tidak memakan kuota token.
+  - Salin `templates/AGENTS.md` ke root proyek tim sebagai `AGENTS.md` lalu sesuaikan placeholder Tech Stack dan perintah build/test.
+- **Konfigurasi MCP (`mcp_config.example.json`):** Referensi konfigurasi MCP server (`context7`, `fetch`, `sqlite`) untuk digabungkan ke file konfigurasi MCP Antigravity Anda (`~/.gemini/antigravity/mcp_config.json`), jangan lupa sesuaikan path database SQLite lokal Anda.
 
 ---
 
