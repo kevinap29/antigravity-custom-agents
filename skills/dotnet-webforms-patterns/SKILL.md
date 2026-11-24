@@ -1,65 +1,59 @@
 ---
 name: dotnet-webforms-patterns
-description: Referensi pola implementasi & verifikasi statis untuk proyek legacy .NET Framework (4.x) dan ASP.NET WebForms (.aspx, .ascx, .aspx.cs, .designer.cs, .csproj non-SDK, EF6/LINQ/ADO.NET). Gunakan saat membuat atau memodifikasi halaman/kontrol WebForms.
+description: Implementation patterns and static verification checklist for legacy .NET Framework (4.x) and ASP.NET WebForms (.aspx, .ascx, .aspx.cs, .designer.cs, non-SDK .csproj, EF6/LINQ/ADO.NET). Use when creating or modifying WebForms pages/controls.
 ---
 
 # ASP.NET WebForms Patterns & Checklist
 
-Gunakan pola ini agar kode WebForms baru maupun perbaikan tetap kompatibel dengan Visual Studio / `msbuild` tanpa regresi.
+Use these patterns to keep new and updated WebForms code compatible with Visual Studio / `msbuild` without regressions.
 
-## 1. Sinkronisasi `.csproj` Non-SDK-Style (.NET Framework)
-
-Setiap file baru pada Web Application Project (`.csproj` non-SDK) **harus** didaftarkan agar ikut dikompilasi `msbuild`:
+## 1. Non-SDK `.csproj` Sync (.NET Framework)
+Every new file in a Web Application Project (non-SDK `.csproj`) **must** be registered for `msbuild` compilation:
 
 ```xml
 <ItemGroup>
-  <Content Include="Pages\LaporanStok.aspx" />
-  <Compile Include="Pages\LaporanStok.aspx.cs">
-    <DependentUpon>LaporanStok.aspx</DependentUpon>
+  <Content Include="Pages\StockReport.aspx" />
+  <Compile Include="Pages\StockReport.aspx.cs">
+    <DependentUpon>StockReport.aspx</DependentUpon>
     <SubType>ASPXCodeBehind</SubType>
   </Compile>
-  <Compile Include="Pages\LaporanStok.aspx.designer.cs">
-    <DependentUpon>LaporanStok.aspx</DependentUpon>
+  <Compile Include="Pages\StockReport.aspx.designer.cs">
+    <DependentUpon>StockReport.aspx</DependentUpon>
   </Compile>
 </ItemGroup>
 ```
 
-## 2. Sinkronisasi `.aspx` & `.aspx.designer.cs`
-
-Setiap kontrol `runat="server"` baru di `.aspx`/`.ascx` (misal `<asp:TextBox ID="txtKode" runat="server" />` atau `<asp:Button ID="btnSimpan" runat="server" />`) harus punya deklarasi `protected` yang cocok di `*.aspx.designer.cs`:
+## 2. `.aspx` & `.aspx.designer.cs` Sync
+Every `runat="server"` control in `.aspx`/`.ascx` (e.g., `<asp:TextBox ID="txtCode" runat="server" />`, `<asp:Button ID="btnSave" runat="server" />`) must have a matching `protected` declaration in `*.aspx.designer.cs`:
 
 ```csharp
-protected global::System.Web.UI.WebControls.TextBox txtKode;
-protected global::System.Web.UI.WebControls.Button btnSimpan;
+protected global::System.Web.UI.WebControls.TextBox txtCode;
+protected global::System.Web.UI.WebControls.Button btnSave;
 ```
 
 ## 3. Page Lifecycle, Anti-XSS & ViewState
-
-- Selalu bungkus load data awal di `if (!IsPostBack)` agar nilai input user & event postback tidak tertimpa.
-- Gunakan `<%: Eval("Nama") %>` atau `HttpUtility.HtmlEncode(...)` untuk seluruh output teks; jangan memakai `<%= ... %>` atau `Response.Write` mentah untuk data input/DB.
-- Set `EnableViewState="false"` pada kontrol display read-only / `Repeater` / `GridView` besar bila tidak butuh mempertahankan state antar postback.
-- Cek `if (!Page.IsValid) return;` pada event handler tombol submit.
+- Wrap initial data loading in `if (!IsPostBack)` so user inputs and postback events are not overwritten.
+- Use `<%: Eval("Name") %>` or `HttpUtility.HtmlEncode(...)` for all text output; never use raw `<%= ... %>` or `Response.Write` for user/DB data.
+- Set `EnableViewState="false"` on read-only display controls or large `Repeater`/`GridView` controls when postback state is unnecessary.
+- Check `if (!Page.IsValid) return;` in submit button event handlers.
 
 ## 4. Data Access: EF6 / LINQ First & Safe ADO.NET
+- **EF6 / LINQ to SQL (Prefer when present):**
+  - Use `using (var db = new AppDbContext())`, `.AsNoTracking()` for read queries, and LINQ without raw SQL template strings.
+  - Never trigger `Add-Migration` / `Enable-Migrations`.
+- **ADO.NET (Only when module lacks EF/LINQ):**
+  - Validate inputs before opening connections (**Validate-Before-Allocate**).
+  - Wrap `SqlConnection`, `SqlCommand`, `SqlTransaction`, and `SqlDataReader` in `using` (**Single-Owner Cleanup**).
+  - Use typed parameters: `cmd.Parameters.Add("@Code", SqlDbType.VarChar, 50).Value = code;` (avoid string concatenation and `AddWithValue` on type-sensitive indexed columns).
 
-- **EF6 / LINQ to SQL (Utamakan jika sudah ada di proyek):**
-  - Gunakan `using (var db = new AppDbContext())`, `.AsNoTracking()` untuk query baca, dan LINQ tanpa raw SQL template string.
-  - Dilarang memicu `Add-Migration` / `Enable-Migrations`.
-- **ADO.NET (Hanya jika modul tidak memakai EF/LINQ):**
-  - Validasi input dulu sebelum membuka koneksi (**Validate-Before-Allocate**).
-  - Gunakan `using` untuk `SqlConnection`, `SqlCommand`, `SqlTransaction`, dan `SqlDataReader` (**Single-Owner Cleanup**).
-  - Gunakan `cmd.Parameters.Add("@Kode", SqlDbType.VarChar, 50).Value = kode;` (hindari string concatenation dan hindari `AddWithValue` untuk kolom berindeks yang sensitif tipe).
-
-## 5. Checklist Verifikasi Statis (Saat `msbuild` Tidak Tersedia di Sandbox)
-
-1. Semua file baru `.aspx`/`.ascx`/`.cs`/`.designer.cs` sudah tercantum di `.csproj`.
-2. `CodeBehind` & `Inherits` pada directive `<%@ Page ... %>` cocok 100% dengan namespace & class di `.aspx.cs`.
-3. Seluruh `ID` kontrol `runat="server"` yang diakses di `.aspx.cs` ada dan bertipe sama di `.designer.cs`.
-4. Tidak ada `SqlConnection`/`DbContext` yang bocor tanpa `using`, dan tidak ada `<%=` untuk data dinamis.
+## 5. Static Verification Checklist (When `msbuild` Is Unavailable in Sandbox)
+1. All new `.aspx`/`.ascx`/`.cs`/`.designer.cs` files are registered in `.csproj`.
+2. `CodeBehind` & `Inherits` in `<%@ Page ... %>` match namespace & class in `.aspx.cs` 100%.
+3. Every `runat="server"` control `ID` referenced in `.aspx.cs` exists with matching type in `.designer.cs`.
+4. No leaked `SqlConnection`/`DbContext` without `using`, and no `<%=` for dynamic data.
 
 ## 6. Legacy Architecture, Testability & Security Guardrails
-
-- **Respect Legacy Patterns:** Gunakan pola `BasePage`, `MasterPage`, UserControl (`.ascx`), Handler (`.ashx`), dan BLL/DAL eksisting. Jangan memaksakan pola .NET Core (CQRS/MediatR/Minimal API) atau menambah NuGet yang tidak diminta.
-- **Fail-Closed Auth & Session:** Pertahankan validasi auth/role/session dan `ViewStateUserKey` di `Page_Init`/`Page_Load` atau `.ashx` (tidak ada endpoint/WebMethod yang fail-open).
-- **DRY & Anti-Wrong Abstraction (Rule of Three):** Cek `BasePage`, `.ascx`, `App_Code`/Helper, dan `Web.config` `appSettings` sebelum membuat helper baru. Hindari menggabungkan dua alur bisnis berbeda lewat boolean flag; pecah bertahap dengan **Inline & Split** (`[Obsolete]` bila pemanggil tersebar).
-- **Legacy Testability & Dependency-Breaking:** Sebelum refactor logic legacy tanpa unit test, kunci perilaku dengan **Characterization Test** (bila test project ada). Isolasikan fitur baru dari method raksasa memakai **Sprout Method** / **Wrap Method**, dan pisahkan pure business logic dari `Page`/`Session`/`HttpContext`/`DateTime.Now` via **Extract Interface**, **Parameterize Constructor/Method**, atau **`Func<>` injection**.
+- **Respect Legacy Patterns:** Follow existing `BasePage`, `MasterPage`, UserControl (`.ascx`), Handler (`.ashx`), and BLL/DAL patterns. Never force .NET Core patterns (CQRS/MediatR/Minimal API) or unrequested NuGet packages.
+- **Fail-Closed Auth & Session:** Preserve auth/role/session checks and `ViewStateUserKey` in `Page_Init`/`Page_Load` or `.ashx` (no fail-open endpoints/WebMethods).
+- **DRY & Anti-Wrong Abstraction (Rule of Three):** Check `BasePage`, `.ascx`, `App_Code`/Helpers, and `Web.config` `appSettings` first. Avoid merging distinct business flows via boolean flags; split incrementally using **Inline & Split** (`[Obsolete]` if callers are widespread).
+- **Legacy Testability & Dependency-Breaking:** Before refactoring untested legacy logic, lock behavior with a **Characterization Test** (if test project exists). Isolate new features from monolithic methods via **Sprout Method** / **Wrap Method**, and decouple pure business logic from `Page`/`Session`/`HttpContext`/`DateTime.Now` via **Extract Interface**, **Parameterize Constructor/Method**, or **`Func<>` injection**.

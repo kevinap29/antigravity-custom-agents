@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verifikasi kesehatan instalasi Antigravity Custom Agents, Skills, RTK Plugin, dan GEMINI.md.
+# Verifikasi kesehatan instalasi Antigravity Custom Agents, Skills, RTK Plugin,
+# Deterministic Gate, GEMINI.md, serta Add-ons aktif (~/.gemini/.addons.json).
 
 GEMINI_DIR="${HOME}/.gemini"
 CONFIG_AGENTS_DIR="${GEMINI_DIR}/config/agents"
 ANTIGRAVITY_AGENTS_DIR="${GEMINI_DIR}/antigravity/agents"
 CONFIG_SKILLS_DIR="${GEMINI_DIR}/config/skills"
 CONFIG_RTK_DIR="${GEMINI_DIR}/config/plugins/rtk"
+SCRIPTS_DIR="${GEMINI_DIR}/scripts"
+MCP_DIR="${GEMINI_DIR}/mcp"
+MEMORY_DIR="${GEMINI_DIR}/memory"
+BIN_DIR="${GEMINI_DIR}/bin"
 GEMINI_MD_PATH="${GEMINI_DIR}/GEMINI.md"
+ADDONS_PROFILE="${GEMINI_DIR}/.addons.json"
 
 EXPECTED_AGENTS=(
   "db-data-engineer.md"
@@ -34,6 +40,21 @@ EXPECTED_RTK_FILES=(
   "rules/AGENTS.md"
 )
 
+CENTRAL_MEMORY_ENABLED=false
+QDRANT_MODE=""
+if [[ -f "${ADDONS_PROFILE}" ]]; then
+  if grep -Eq '"centralMemory"[[:space:]]*:[[:space:]]*true' "${ADDONS_PROFILE}"; then
+    CENTRAL_MEMORY_ENABLED=true
+  fi
+  if grep -Eq '"qdrantMode"[[:space:]]*:[[:space:]]*"local"' "${ADDONS_PROFILE}"; then
+    QDRANT_MODE="local"
+  elif grep -Eq '"qdrantMode"[[:space:]]*:[[:space:]]*"localhost"' "${ADDONS_PROFILE}"; then
+    QDRANT_MODE="localhost"
+  elif grep -Eq '"qdrantMode"[[:space:]]*:[[:space:]]*"remote"' "${ADDONS_PROFILE}"; then
+    QDRANT_MODE="remote"
+  fi
+fi
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -43,7 +64,13 @@ NC='\033[0m'
 ok_count=0
 warn_count=0
 fail_count=0
-total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SKILLS[@]} + ${#EXPECTED_RTK_FILES[@]} + 1 ))
+total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SKILLS[@]} + ${#EXPECTED_RTK_FILES[@]} + 2 ))
+if [[ "${CENTRAL_MEMORY_ENABLED}" == "true" ]]; then
+  total_required=$((total_required + 4))
+  if [[ "${QDRANT_MODE}" == "local" || "${QDRANT_MODE}" == "localhost" ]]; then
+    total_required=$((total_required + 1))
+  fi
+fi
 
 echo -e "${CYAN}============================================================${NC}"
 echo -e "${CYAN}  Antigravity Bundle Health-Check (Unix/macOS)              ${NC}"
@@ -69,25 +96,39 @@ check_file() {
   fi
 }
 
-echo -e "${CYAN}[1/5] Memeriksa Agents di config/agents (${#EXPECTED_AGENTS[@]} file)...${NC}"
+check_dir() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -d "${path}" ]]; then
+    echo -e "  ${RED}[FAIL] ${label} -> Direktori tidak ditemukan (${path})${NC}"
+    fail_count=$((fail_count + 1))
+    return 1
+  else
+    echo -e "  ${GREEN}[OK]   ${label}${NC}"
+    ok_count=$((ok_count + 1))
+    return 0
+  fi
+}
+
+echo -e "${CYAN}[1/6] Memeriksa Agents di config/agents (${#EXPECTED_AGENTS[@]} file)...${NC}"
 for agent in "${EXPECTED_AGENTS[@]}"; do
   check_file "${CONFIG_AGENTS_DIR}/${agent}" "config/agents/${agent}" || true
 done
 
 echo ""
-echo -e "${CYAN}[2/5] Memeriksa Agents di antigravity/agents (${#EXPECTED_AGENTS[@]} file)...${NC}"
+echo -e "${CYAN}[2/6] Memeriksa Agents di antigravity/agents (${#EXPECTED_AGENTS[@]} file)...${NC}"
 for agent in "${EXPECTED_AGENTS[@]}"; do
   check_file "${ANTIGRAVITY_AGENTS_DIR}/${agent}" "antigravity/agents/${agent}" || true
 done
 
 echo ""
-echo -e "${CYAN}[3/5] Memeriksa Custom Skills (${#EXPECTED_SKILLS[@]} skill)...${NC}"
+echo -e "${CYAN}[3/6] Memeriksa Custom Skills (${#EXPECTED_SKILLS[@]} skill)...${NC}"
 for skill in "${EXPECTED_SKILLS[@]}"; do
   check_file "${CONFIG_SKILLS_DIR}/${skill}/SKILL.md" "config/skills/${skill}/SKILL.md" || true
 done
 
 echo ""
-echo -e "${CYAN}[4/5] Memeriksa Plugin RTK & Binary CLI...${NC}"
+echo -e "${CYAN}[4/6] Memeriksa Plugin RTK & Binary CLI...${NC}"
 for rtk_file in "${EXPECTED_RTK_FILES[@]}"; do
   check_file "${CONFIG_RTK_DIR}/${rtk_file}" "config/plugins/rtk/${rtk_file}" || true
 done
@@ -100,8 +141,56 @@ else
 fi
 
 echo ""
-echo -e "${CYAN}[5/5] Memeriksa Global Rules (GEMINI.md)...${NC}"
+echo -e "${CYAN}[5/6] Memeriksa Core Deterministic Gate & Global Rules...${NC}"
+check_file "${SCRIPTS_DIR}/verify-gate.ps1" "scripts/verify-gate.ps1" || true
 check_file "${GEMINI_MD_PATH}" "GEMINI.md" || true
+
+echo ""
+echo -e "${CYAN}[6/6] Memeriksa Add-on Central Memory MCP & Security Scanners...${NC}"
+if [[ "${CENTRAL_MEMORY_ENABLED}" == "true" ]]; then
+  check_file "${MCP_DIR}/central_memory_mcp.py" "mcp/central_memory_mcp.py" || true
+  check_file "${MCP_DIR}/requirements.txt" "mcp/requirements.txt" || true
+  check_file "${MEMORY_DIR}/GLOBAL_RULES.md" "memory/GLOBAL_RULES.md" || true
+  check_file "${MEMORY_DIR}/ARCHITECTURE_NOTES.md" "memory/ARCHITECTURE_NOTES.md" || true
+
+  case "${QDRANT_MODE}" in
+    local)
+      check_dir "${MEMORY_DIR}/qdrant_local" "memory/qdrant_local (mode=local)" || true
+      ;;
+    localhost)
+      check_file "${BIN_DIR}/qdrant-config.yaml" "bin/qdrant-config.yaml (mode=localhost)" || true
+      if [[ -x "${BIN_DIR}/qdrant" ]]; then
+        echo -e "  ${GREEN}[OK]   bin/qdrant tersedia (${BIN_DIR}/qdrant)${NC}"
+      else
+        echo -e "  ${YELLOW}[WARN] bin/qdrant belum tersedia di ${BIN_DIR} (unduh manual jika mode=localhost)${NC}"
+        warn_count=$((warn_count + 1))
+      fi
+      ;;
+    remote)
+      echo -e "  ${GREEN}[OK]   Mode Qdrant: remote (gunakan QDRANT_URL / QDRANT_API_KEY)${NC}"
+      ;;
+    *)
+      echo "  [INFO] qdrantMode belum diset di .addons.json (profil lama)"
+      ;;
+  esac
+
+  if [[ -x "${MCP_DIR}/.venv/bin/python" ]]; then
+    echo -e "  ${GREEN}[OK]   Python .venv tersedia (${MCP_DIR}/.venv/bin/python)${NC}"
+  else
+    echo -e "  ${YELLOW}[WARN] Python .venv belum dibuat di ${MCP_DIR}/.venv (opsional)${NC}"
+    warn_count=$((warn_count + 1))
+  fi
+else
+  echo -e "  ${YELLOW}[SKIP] Add-on Central Memory MCP tidak aktif di .addons.json${NC}"
+fi
+
+for tool in gitleaks trivy semgrep; do
+  if command -v "${tool}" >/dev/null 2>&1; then
+    echo -e "  ${GREEN}[OK]   Scanner '${tool}' tersedia ($(command -v "${tool}"))${NC}"
+  else
+    echo "  [INFO] Scanner '${tool}' belum terpasang (opsional)"
+  fi
+done
 
 echo ""
 echo -e "${CYAN}============================================================${NC}"

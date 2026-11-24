@@ -1,5 +1,7 @@
 # 🚀 Antigravity Custom Agents, Skills & RTK Plugin
 
+🌐 **English** | [Bahasa Indonesia](README.id.md)
+
 [![Antigravity Agent](https://img.shields.io/badge/Antigravity-Custom%20Agents-blueviolet?style=flat-square)](https://github.com/kevinap29/antigravity-custom-agents)
 [![.NET](https://img.shields.io/badge/.NET-6--11%20%7C%20WebForms%20%7C%20MAUI-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-TypeScript%20%2B%20Tailwind-FF3E00?style=flat-square&logo=svelte)](https://kit.svelte.dev/)
@@ -7,13 +9,13 @@
 [![RTK](https://img.shields.io/badge/RTK-Token%20Optimizer-10B981?style=flat-square)](https://github.com/rtk-ai/rtk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-Koleksi siap pakai berisi **9 Custom Agents**, **3 Custom Skills**, **Plugin RTK (Token Optimizer)**, dan **Global Developer Profile & Guardrails (`GEMINI.md`)** untuk **Antigravity / Gemini CLI**. Dirancang untuk alur kerja SDLC full-stack (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, hingga Docker/Portainer/Harbor VPS).
+Ready-to-use collection of **9 Custom Agents**, **3 Custom Skills**, **RTK Plugin (Token Optimizer)**, **Deterministic Quality/Security Gate**, **Optional Central Memory MCP (Qdrant)**, and **Global Developer Profile & Guardrails (`GEMINI.md`)** for **Antigravity / Gemini CLI**. Designed for full-stack SDLC workflows (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, and Docker/Portainer/Harbor VPS).
 
 ---
 
 ## ⚡ Quickstart
 
-Clone repositori ini lalu jalankan skrip installer otomatis sesuai sistem operasi Anda:
+Clone this repository and run the installer for your OS:
 
 ```bash
 # Clone repository
@@ -27,175 +29,215 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 chmod +x install.sh && ./install.sh
 ```
 
-> **Catatan:** Jika Anda menginstal dari arsip `.zip`, cukup ekstrak arsip tersebut lalu jalankan perintah `install.ps1` (Windows) atau `./install.sh` (macOS/Linux) di dalam folder hasil ekstrak.
+> **Note:** If installing from a `.zip` archive, extract it first and run `install.ps1` (Windows) or `./install.sh` (macOS/Linux) inside the extracted folder.
 
 ---
 
-## ✨ Fitur Utama
+## ✨ Key Features (v1.5 Upgrade)
 
-- **9 Custom Agents Terstruktur:** Terdiri dari 2 Main Agent (`sdlc-team-lead` & `pr-review-fixer`) dan 7 Subagent spesialis domain yang dapat bekerja paralel.
-- **3 Domain Skills:** Panduan pola kode & deployment siap pakai untuk ASP.NET WebForms legacy, SvelteKit & .NET MAUI Hybrid Blazor, serta Portainer/Harbor Docker Stack.
-- **Plugin RTK (Token Optimizer):** Hook `PreToolUse` (`rtk hook antigravity`) untuk mengompresi output terminal panjang secara transparan agar kuota token lebih hemat.
-- **Global Developer Profile (`GEMINI.md`):** Aturan standar DB-first, DRY, Zero Regression, KISS, dan Doc Sync otomatis di setiap sesi.
+- **9 Structured Custom Agents:** 2 Main Agents (`sdlc-team-lead` & `pr-review-fixer`) and 7 domain-specialist Subagents.
+- **SDLC v1.5 Architecture (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
+  - **4-Lane Complexity Matrix:** `Lane 0 (docs)` handled directly by Team Lead, `Lane 1 (micro < 30 lines)` skips plan file using `Model: flash`, and `Lane 2/3 (standard/complex)` runs full Phase 0–5.
+  - **Contract Freeze Gate:** Parallel execution is only allowed after Phase 0 DTO contracts are finalized & pass the Ambiguity Gate, capped at **max 2 parallel subagents**.
+  - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 remains optional (skipped for backend-only/minor tasks). When a prototype is created (`_prototypes/<feature-slug>.html`), `ui-prototyper` aligns with the project's CSS/icon/chart packages + *Component Mapping Note*, followed by a *Prototype Approval Gate*, 1:1 conversion by `frontend-mobile-dev`, and *Prototype Parity Audit* by `qa-code-reviewer`.
+  - **Progressive Model Escalation:** If `qa-code-reviewer` emits `[CRITICAL][ESCALATE_MODEL]` or a `flash` subagent fails on iteration 2+, Team Lead spawns a new subagent with a higher model tier (`flash` → `inherit` → `pro`).
+- **Deterministic Quality & Security Gate (`scripts/verify-gate.ps1`):** Auto-detects `.NET` (`dotnet build`/`test`), `Node/SvelteKit` (`npm run check`/`build`/`test`), `Python` (`pytest`), plus static security scanners (`gitleaks`, `trivy`, and `semgrep` on Unix/macOS).
+- **Optional Central Memory MCP (`mcp/central_memory_mcp.py` + Qdrant):** Cross-session semantic memory (`BAAI/bge-small-en-v1.5` local CPU embeddings via `fastembed` + 3 Qdrant modes: Local Embedded / Localhost Server / Remote VPS, `git_tree_hash` staleness protection), plus an optional auto-reconnecting SSH tunnel for restricted/office networks.
+- **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Auto-detects OS & installed tools (e.g., automatically skips `semgrep` on Windows), separates **Core** from optional **Add-ons**, and persists selections in `~/.gemini/.addons.json` for `update` & `verify`.
+- **3 Domain Skills & RTK Plugin (Token Optimizer):** Reusable patterns (WebForms, SvelteKit/MAUI, Portainer/Harbor) + RTK terminal output compression hook.
+- **Token-Efficient English Prompts + Configurable Response Language:** All `agents/*.md`, `skills/*/SKILL.md`, and `GEMINI.md` are written in concise bullet-style English to save ~20–30% tokens and improve precision on smaller models (`flash`), with configurable user response language (`-ResponseLanguage` / `--response-language`, default `English`) and concise tone (`Direct, concise, technical; no filler or redundant recaps.`) in `GEMINI.md`.
+- **Global Developer Profile (`GEMINI.md`):** Enforces DB-first, DRY, Zero Regression, KISS, and Doc Sync across every session.
 
 ---
 
-## 📦 Struktur Repositori
+## 📦 Repository Structure
 
 ```text
 antigravity-custom-agents/
-├── agents/                     # 9 definisi custom agent (.md)
-│   ├── sdlc-team-lead.md       # Main Agent: Arsitek & koordinator SDLC
-│   ├── pr-review-fixer.md      # Main Agent: Auto-fixer PR/AI code review
-│   ├── dotnet-cqrs-dev.md      # Subagent: Backend C# / .NET Core / CQRS
+├── agents/                     # 9 custom agent definitions (.md, token-efficient English)
+│   ├── sdlc-team-lead.md       # Main Agent: SDLC Architect & Coordinator
+│   ├── pr-review-fixer.md      # Main Agent: PR / AI code review auto-fixer
+│   ├── dotnet-cqrs-dev.md      # Subagent: C# / .NET Core / CQRS backend
 │   ├── dotnet-webforms-dev.md  # Subagent: Legacy .NET Framework / ASP.NET WebForms
 │   ├── frontend-mobile-dev.md  # Subagent: SvelteKit & .NET MAUI Hybrid Blazor
 │   ├── db-data-engineer.md     # Subagent: SQLite (WAL) & SQL Server (T-SQL)
 │   ├── devops-git-ops.md       # Subagent: Git, CI/CD, Docker/Portainer/Harbor, VPS
-│   ├── ui-prototyper.md        # Subagent: Prototyping UI HTML + Tailwind CDN
-│   └── qa-code-reviewer.md     # Subagent: Auditor kualitas kode, build & test
+│   ├── ui-prototyper.md        # Subagent: Standalone HTML prototyping + Package Alignment
+│   └── qa-code-reviewer.md     # Subagent: Code quality, build, security & parity auditor
 ├── skills/                     # 3 domain skills
 │   ├── dotnet-webforms-patterns/SKILL.md
 │   ├── frontend-mobile-patterns/SKILL.md
 │   └── portainer-harbor-deploy/SKILL.md
-├── plugins/                    # Plugin tambahan Antigravity
+├── plugins/                    # Antigravity plugins
 │   └── rtk/
-│       ├── plugin.json         # Metadata plugin RTK
+│       ├── plugin.json         # RTK plugin metadata
 │       ├── hooks.json          # PreToolUse hook (rtk hook antigravity)
-│       └── rules/AGENTS.md     # Aturan penggunaan & recovery output RTK
-├── templates/                  # Starter template untuk proyek tim
-│   ├── .antigravityignore      # Ignore rule hemat token (bin/, obj/, node_modules/, dll.)
-│   └── AGENTS.md               # Template instruksi & konvensi proyek
-├── CHEATSHEET.md               # Contoh prompt nyata untuk memicu tiap subagent
-├── mcp_config.example.json     # Contoh konfigurasi MCP server (Context7, fetch, sqlite)
+│       └── rules/AGENTS.md     # RTK usage & output recovery rules
+├── scripts/                    # Deterministic Gate & optional SSH Tunnel scripts
+│   ├── verify-gate.ps1         # Deterministic build/test + security scanner gate
+│   ├── qdrant-tunnel.ps1       # Auto-reconnecting SSH tunnel (env/param-based)
+│   └── qdrant-tunnel-hidden.vbs# Hidden Windows Task Scheduler launcher (%USERPROFILE%)
+├── mcp/                        # Central Memory MCP Server (Optional)
+│   ├── central_memory_mcp.py   # Qdrant + fastembed MCP (git_tree_hash staleness check)
+│   └── requirements.txt        # Python dependencies (qdrant-client[fastembed], fastmcp)
+├── memory/                     # Global rules & architecture notes reference (Optional)
+│   ├── GLOBAL_RULES.md
+│   └── ARCHITECTURE_NOTES.md
+├── templates/                  # Team project starter templates
+│   ├── .antigravityignore      # Token-saving ignore rules (bin/, obj/, node_modules/, etc.)
+│   └── AGENTS.md               # Project conventions & build/test template
+├── CHEATSHEET.md / .id.md      # Real-world prompt examples (English & Bahasa Indonesia)
+├── mcp_config.example.json     # Example MCP config (context7, fetch, sqlite, central_memory)
 ├── GEMINI.md                   # Global Developer Profile & Coding Guardrails
-├── install.ps1                 # Installer otomatis Windows (PowerShell)
-├── install.sh                  # Installer otomatis Linux / macOS (Bash)
-├── verify.ps1 / verify.sh      # Health-check seluruh komponen terpasang
-├── update.ps1 / update.sh      # Sinkronisasi & update bundle ke ~/.gemini
-├── uninstall.ps1 / uninstall.sh# Rollback aman hanya untuk komponen bundle
+├── install.ps1                 # Modular Windows Installer (Core + Add-ons + Env Check)
+├── install.sh                  # Modular Linux / macOS Installer (Core + Add-ons + Env Check)
+├── verify.ps1 / verify.sh      # Health-check for installed Core & Add-ons
+├── update.ps1 / update.sh      # Sync & update bundle respecting ~/.gemini/.addons.json
+├── uninstall.ps1 / uninstall.sh# Safe rollback removing only bundle components
 ├── LICENSE                     # MIT License
 ├── .gitignore
-└── README.md                   # Dokumentasi ini
+└── README.md / README.id.md    # Bilingual documentation (English & Bahasa Indonesia)
 ```
 
-### Daftar Custom Agents (9 Agent)
+### Custom Agents Overview (9 Agents)
 
-| Agent | Peran | Tugas Utama |
+| Agent | Role | Primary Responsibility |
 | :--- | :--- | :--- |
-| `sdlc-team-lead` | **Main Agent** | Perencanaan terisolasi per fitur, deteksi stack otomatis, prototyping HTML, delegasi paralel subagent, dan QA auto-fix loop. |
-| `pr-review-fixer` | **Main Agent** | Single-agent hemat kuota untuk eksekusi perbaikan komentar AI Code Review / PR bot secara presisi serta membuat draft balasan markdown. |
-| `dotnet-cqrs-dev` | Subagent | Pengembangan backend C#, .NET Core / .NET 6–11, ASP.NET Core, Vertical Slice Architecture, CQRS, custom mediator, LINQ/EF Core, dan `ISqliteConnectionFactory` / Dapper. |
-| `dotnet-webforms-dev` | Subagent | Maintenance & fitur baru legacy .NET Framework 4.x dan ASP.NET WebForms (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET). |
-| `frontend-mobile-dev` | Subagent | Pengembangan frontend SvelteKit (UI, routing, server routes, Tailwind) dan aplikasi mobile/desktop .NET MAUI Hybrid Blazor. |
-| `db-data-engineer` | Subagent | Desain skema SQL, migrasi DB-first, indexing, optimasi query SQLite (WAL mode, batch SQL) dan SQL Server (T-SQL, stored procedures). |
-| `devops-git-ops` | Subagent | Git workflow, GitHub Actions CI/CD, Dockerfile & Portainer Stack, Harbor registry, `systemd`, `cloudflared` di Ubuntu VPS, serta CI/CD build `.NET MAUI Hybrid Blazor`. |
-| `ui-prototyper` | Subagent | Pembuatan prototipe UI/UX interaktif berbasis standalone HTML, Tailwind CDN, dan Vanilla/Alpine JS sebelum implementasi ke SvelteKit atau Blazor. |
-| `qa-code-reviewer` | Subagent | Audit kualitas kode, sinkronisasi kontrak API, DRY, Zero Regression, Doc Sync, keamanan, dan verifikasi build/test. |
+| `sdlc-team-lead` | **Main Agent** | Isolated per-feature planning, 4-Lane Matrix, auto stack detection, Contract Freeze Gate, conditional prototype handover, and Progressive Model Escalation. |
+| `pr-review-fixer` | **Main Agent** | Quota-efficient single-agent executor for PR / AI code review comments with minimal-diff fixes and copy-ready markdown replies. |
+| `dotnet-cqrs-dev` | Subagent | C#, .NET Core / .NET 6–11, ASP.NET Core, Vertical Slice Architecture, CQRS, custom mediator, LINQ/EF Core, and `ISqliteConnectionFactory` / Dapper. |
+| `dotnet-webforms-dev` | Subagent | Zero-regression maintenance & features for legacy .NET Framework 4.x and ASP.NET WebForms (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET). |
+| `frontend-mobile-dev` | Subagent | SvelteKit (UI, routing, server routes, Tailwind) and .NET MAUI Hybrid Blazor (Android/Desktop) with 1:1 Prototype Fidelity. |
+| `db-data-engineer` | Subagent | DB-first SQL schemas, idempotent migrations, indexing, SQLite (WAL mode, batch SQL), and SQL Server (T-SQL, stored procedures). |
+| `devops-git-ops` | Subagent | Git workflows, GitHub Actions CI/CD, Dockerfile & Portainer Stacks, Harbor registry, `systemd`, `cloudflared` on Ubuntu VPS, and `.NET MAUI Hybrid Blazor` CI/CD. |
+| `ui-prototyper` | Subagent | Interactive standalone HTML prototypes aligned with the project's CSS framework, icon library, and chart library. |
+| `qa-code-reviewer` | Subagent | Read-only quality & security audit, deterministic gate (`verify-gate.ps1`), API contract sync, Prototype Parity, DRY, Zero Regression, and Doc Sync. |
 
-### Daftar Custom Skills (3 Skill)
+### Custom Skills Overview (3 Skills)
 
-1. **`dotnet-webforms-patterns`**: Pola implementasi & verifikasi statis proyek legacy .NET Framework 4.x / ASP.NET WebForms (`.csproj` non-SDK, sinkronisasi `.designer.cs`, EF6/LINQ/ADO.NET).
-2. **`frontend-mobile-patterns`**: Panduan implementasi SvelteKit (Svelte 4 vs Svelte 5 runes) dan .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, target build).
-3. **`portainer-harbor-deploy`**: SOP & template standar Docker/Portainer Stack hemat RAM di Ubuntu VPS dan workflow GitHub Actions push image ke Harbor private registry.
+1. **`dotnet-webforms-patterns`**: Legacy .NET Framework 4.x / ASP.NET WebForms patterns & static verification (non-SDK `.csproj`, `.designer.cs` sync, EF6/LINQ/ADO.NET).
+2. **`frontend-mobile-patterns`**: SvelteKit (Svelte 4 vs Svelte 5 runes) and .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, Windows target builds).
+3. **`portainer-harbor-deploy`**: RAM-efficient Docker/Portainer Stack SOP on Ubuntu VPS and GitHub Actions workflows pushing to Harbor private registry.
 
-### Plugin Tambahan: RTK (Token Optimizer)
+### Included Plugin: RTK (Token Optimizer)
 
-Folder `plugins/rtk/` berisi plugin **RTK** (`plugin.json`, `hooks.json`, dan `rules/AGENTS.md`) yang berfungsi melakukan *transparent command rewriting* (`PreToolUse` hook `rtk hook antigravity` pada `run_command`) untuk mengompresi output terminal yang panjang (seperti log build, `git status`, test output) dan menghemat pemakaian token AI secara signifikan.
+`plugins/rtk/` provides the **RTK** plugin (`plugin.json`, `hooks.json`, `rules/AGENTS.md`) for transparent `PreToolUse` command rewriting (`rtk hook antigravity`) to condense verbose terminal output and save AI tokens.
 
-> **Penting:** Plugin ini membutuhkan binary CLI **`rtk`** terpasang di sistem Anda agar hook berjalan penuh:
+> **Prerequisite:** Install the **`rtk`** CLI binary for full hook compression:
 > - **Windows (`winget`):**
 >   ```powershell
 >   winget install --id rtk-ai.rtk -e
 >   ```
->   *(Atau jalankan installer dengan `powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallRtk`.)*
+>   *(Or pass `-InstallRtk` to `install.ps1`.)*
 > - **Linux / macOS:**
 >   - Homebrew: `brew install rtk`
 >   - Cargo (Rust): `cargo install --git https://github.com/rtk-ai/rtk`
->   - Release binary: unduh dari `https://github.com/rtk-ai/rtk/releases` dan masukkan ke `PATH`.
+>   - Release binary: `https://github.com/rtk-ai/rtk/releases`
 
 ---
 
-## 🚀 Cara Instalasi Otomatis (Direkomendasikan)
+## 🚀 Automated Installation — Modular (Core + Add-ons)
 
-Ekstrak file `antigravity-custom-agents.zip` terlebih dahulu, lalu buka terminal di dalam folder `antigravity-custom-agents`.
+The v1.5 installer splits setup into **Core** (mandatory: `agents/`, `skills/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) and **3 Optional Add-ons** with an automatic **OS/Environment Preflight Check**:
+- **Add-on A (Security Scanners):** `gitleaks` & `trivy` (via `winget` on Windows; `semgrep` is automatically skipped on Windows due to lack of native support, and offered on Linux/macOS).
+- **Add-on B (Central Memory MCP / Qdrant — 3 Modes):** Copies `mcp/` & `memory/`, checks Python 3 first, offers `.venv` + `requirements.txt` setup, and lets you choose from 3 Qdrant modes:
+  - **`Local` (Embedded — Default):** Zero-setup, no VPS/Docker/service required; stores vectors in `~/.gemini/memory/qdrant_local` via `QDRANT_LOCAL_PATH` (automatically skips Add-on C).
+  - **`Localhost` (Native Server `127.0.0.1:6333`):** Downloads the official Qdrant binary to `~/.gemini/bin/` + `qdrant-config.yaml` for multi-session access & local Web Dashboard without Docker (automatically skips Add-on C).
+  - **`Remote` (VPS):** Uses `QDRANT_URL` + `QDRANT_API_KEY` (offers Add-on C SSH Tunnel on Windows).
+- **Add-on C (Qdrant SSH Tunnel Auto-Start — Windows Only, `Remote` Mode):** Copies `scripts/qdrant-tunnel.ps1` & `scripts/qdrant-tunnel-hidden.vbs` for restricted/office networks.
+
+Selections (`centralMemory`, `qdrantMode`, `sshTunnel`, `responseLanguage`) are persisted in `~/.gemini/.addons.json` so `update` and `verify` only manage the modules you chose.
 
 ### Windows (PowerShell)
 
 ```powershell
+# Interactive mode (choose response language, Add-ons A/B/C & Qdrant mode):
 powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+# Non-interactive with Central Memory Local Embedded (no VPS):
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -GeminiMdMode Skip -ResponseLanguage "English" -WithSecurityTools -WithMemory -QdrantMode Local
+
+# Non-interactive with Central Memory Remote VPS + SSH Tunnel:
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -GeminiMdMode Skip -ResponseLanguage "English" -WithSecurityTools -WithMemory -QdrantMode Remote -WithTunnel
 ```
 
-> **Catatan:** Jika Anda ingin langsung menentukan perilaku terhadap file `GEMINI.md` yang sudah ada tanpa prompt interaktif, tambahkan parameter `-GeminiMdMode`:
-> - `-GeminiMdMode Overwrite` (backup file lama lalu timpa)
-> - `-GeminiMdMode Merge` (backup file lama lalu gabungkan di bagian bawah)
-> - `-GeminiMdMode Skip` (pertahankan `GEMINI.md` yang sudah ada)
+> **Windows Parameters (`install.ps1`):**
+> - `-GeminiMdMode Prompt|Overwrite|Merge|Skip`
+> - `-ResponseLanguage <Language>` (agent response language in `GEMINI.md`; default: `English`, interactive offers `English`, `Bahasa Indonesia`, or `Custom`)
+> - `-InstallRtk` (install `rtk` CLI via `winget`)
+> - `-WithSecurityTools` (install `gitleaks` & `trivy` via `winget`; `semgrep` is auto-skipped on Windows)
+> - `-WithMemory` (install Central Memory MCP + `memory/*.md` + optional `.venv`)
+> - `-QdrantMode Local|Localhost|Remote` (default: `Local` when `-WithMemory` is set)
+> - `-WithTunnel` (install Windows Qdrant SSH Tunnel scripts; `Remote` mode only)
 
 ### Linux / macOS (Bash)
 
 ```bash
 chmod +x install.sh
+# Interactive mode:
 bash install.sh
+
+# Non-interactive with Add-ons (Local Embedded / Localhost / Remote):
+bash install.sh --gemini-mode=skip --response-language="English" --with-security-tools --with-memory --qdrant-mode=local
 ```
 
-> **Opsi non-interaktif:** `bash install.sh --gemini-mode=merge` (pilihan: `prompt`, `overwrite`, `merge`, `skip`).
+> **Unix/macOS Parameters (`install.sh`):** `--gemini-mode=prompt|overwrite|merge|skip`, `--response-language=<lang>` (default: `English`), `--with-security-tools`, `--with-memory`, `--qdrant-mode=local|localhost|remote`.
 
 ---
 
-## 🛠️ Cara Instalasi Manual
+## 📋 Windows Prerequisites & Advanced Setup (Optional)
 
-Jika Anda ingin menyalin file secara manual tanpa menjalankan skrip installer:
-
-1. **Salin seluruh file agent (`agents/*.md`)** ke kedua direktori berikut:
-   - Windows:
-     - `%USERPROFILE%\.gemini\config\agents\`
-     - `%USERPROFILE%\.gemini\antigravity\agents\`
-   - Linux / macOS:
-     - `~/.gemini/config/agents/`
-     - `~/.gemini/antigravity/agents/` (boleh berupa symlink ke `~/.gemini/config/agents/<nama>.md`)
-
-2. **Salin seluruh folder skill (`skills/*`)** ke:
-   - Windows: `%USERPROFILE%\.gemini\config\skills\`
-   - Linux / macOS: `~/.gemini/config/skills/`
-
-3. **Salin folder plugin RTK (`plugins/rtk/`)** ke:
-   - Windows: `%USERPROFILE%\.gemini\config\plugins\rtk\`
-   - Linux / macOS: `~/.gemini/config/plugins/rtk/`
-
-4. **Salin atau gabungkan `GEMINI.md`** ke:
-   - Windows: `%USERPROFILE%\.gemini\GEMINI.md`
-   - Linux / macOS: `~/.gemini/GEMINI.md`
-
-Pastikan struktur akhir di direktori `.gemini` Anda terlihat seperti ini:
-
-```text
-~/.gemini/
-├── GEMINI.md
-├── antigravity/
-│   └── agents/
-│       └── (9 file .md atau symlink)
-└── config/
-    ├── agents/
-    │   └── (9 file .md)
-    ├── plugins/
-    │   └── rtk/
-    │       ├── plugin.json
-    │       ├── hooks.json
-    │       └── rules/AGENTS.md
-    └── skills/
-        ├── dotnet-webforms-patterns/SKILL.md
-        ├── frontend-mobile-patterns/SKILL.md
-        └── portainer-harbor-deploy/SKILL.md
+### 1. Local Security Scanners (Deterministic Gate)
+```powershell
+winget install Gitleaks.Gitleaks
+winget install AquaSecurity.Trivy
 ```
+*(If not installed, `scripts/verify-gate.ps1` runs safely and skips unavailable scanners.)*
+
+### 2. Central Memory MCP (Python 3.13 + Qdrant)
+1. Ensure **Python 3.13** (or 3.10+) is installed, then create a virtual environment at `%USERPROFILE%\.gemini\mcp\.venv`:
+   ```powershell
+   python -m venv "$env:USERPROFILE\.gemini\mcp\.venv"
+   & "$env:USERPROFILE\.gemini\mcp\.venv\Scripts\pip.exe" install -r "$env:USERPROFILE\.gemini\mcp\requirements.txt"
+   ```
+2. Copy the matching entry from `mcp_config.example.json` into `%USERPROFILE%\.gemini\antigravity\mcp_config.json`:
+   - **`Local` (Embedded, no VPS):** use `central_memory_local` (set `QDRANT_LOCAL_PATH` to `<USER_HOME>/.gemini/memory/qdrant_local`, no `QDRANT_URL`/`QDRANT_API_KEY`).
+   - **`Localhost` (Native Server):** use `central_memory` with `QDRANT_URL=http://127.0.0.1:6333` (start `~/.gemini/bin/qdrant(.exe) --config-path ~/.gemini/bin/qdrant-config.yaml`).
+   - **`Remote` (VPS):** use `central_memory` and replace `<USER_HOME>`, `<QDRANT_URL>`, and `<QDRANT_API_KEY>`.
+
+### 3. Auto-Start SSH Tunnel via Windows Task Scheduler (Office / Restricted Network)
+1. Set user environment variables (one-time):
+   ```powershell
+   [Environment]::SetEnvironmentVariable("QDRANT_SSH_HOST", "<SSH_USER>@<VPS_IP>", "User")
+   [Environment]::SetEnvironmentVariable("QDRANT_SSH_PORT", "22", "User")
+   ```
+2. Create a **Windows Task Scheduler** task named `Antigravity-Qdrant-Tunnel`:
+   - **Trigger:** *At log on* (your user).
+   - **Action:** *Start a program* → Program: `wscript.exe`, Arguments: `"%USERPROFILE%\.gemini\scripts\qdrant-tunnel-hidden.vbs"`.
+   - Runs 100% hidden in the background (`127.0.0.1:6333` → VPS) with a named Mutex single-instance guard and auto-reconnect.
+
+### 4. Native Qdrant (Non-Docker) on Ubuntu VPS
+For RAM-constrained VPS without Docker:
+1. Download the official Qdrant Linux static binary (`qdrant-x86_64-unknown-linux-musl.tar.gz`) to `/usr/local/bin/qdrant` and create `/etc/qdrant/config.yaml` binding **`host: 127.0.0.1`**, **`http_port: 6333`**, and `service.api_key: "<QDRANT_API_KEY>"`.
+2. Run via `systemd` (`/etc/systemd/system/qdrant.service`) with **`MemoryMax=300M`**, `Restart=always`, then enable with `systemctl enable --now qdrant`.
+3. Connect securely from your laptop over SSH port forwarding (`127.0.0.1:6333`) without exposing Qdrant publicly.
 
 ---
 
-## ✅ Verifikasi, Update & Rollback
+## 🛠️ Manual Installation
 
-### 1. Health-Check Instalasi (`verify`)
+If you prefer copying files manually:
+1. **Copy all agents (`agents/*.md`)** to both `~/.gemini/config/agents/` and `~/.gemini/antigravity/agents/` (symlink allowed).
+2. **Copy all skills (`skills/*`)** to `~/.gemini/config/skills/`.
+3. **Copy RTK plugin (`plugins/rtk/`)** to `~/.gemini/config/plugins/rtk/`.
+4. **Copy `scripts/verify-gate.ps1`** to `~/.gemini/scripts/verify-gate.ps1`.
+5. **Copy or merge `GEMINI.md`** to `~/.gemini/GEMINI.md`.
 
-Pastikan seluruh 9 agent, 3 skill, 3 file plugin RTK, binary `rtk`, dan `GEMINI.md` terpasang sehat:
+---
 
+## ✅ Verify, Update & Rollback
+
+### 1. Health-Check (`verify`)
 ```powershell
 # Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\verify.ps1
@@ -205,10 +247,7 @@ powershell -ExecutionPolicy Bypass -File .\verify.ps1
 bash verify.sh
 ```
 
-### 2. Sinkronisasi / Update Bundle (`update`)
-
-Tarik pembaruan terbaru dari Git (bila via `git clone`), salin ulang ke `~/.gemini/`, dan jalankan health-check otomatis (mempertahankan `GEMINI.md` lokal secara default):
-
+### 2. Sync / Update Bundle (`update`)
 ```powershell
 # Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\update.ps1
@@ -219,9 +258,6 @@ bash update.sh
 ```
 
 ### 3. Rollback / Uninstall (`uninstall`)
-
-Menghapus **hanya** 9 agent bundle, 3 skill bundle, dan plugin RTK secara idempoten tanpa menyentuh `GEMINI.md` maupun agent/skill pribadi Anda:
-
 ```powershell
 # Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
@@ -235,34 +271,31 @@ bash uninstall.sh
 
 ## 🧩 Starter Templates, MCP & Cheatsheet
 
-- **Contoh Prompt Nyata ([CHEATSHEET.md](CHEATSHEET.md)):** Berisi 6 skenario siap pakai untuk memicu `sdlc-team-lead`, `dotnet-webforms-dev`, `db-data-engineer`, `devops-git-ops`, `qa-code-reviewer`, `pr-review-fixer`, dan `ui-prototyper`.
-- **Template Proyek Tim (`templates/`):**
-  - Salin `templates/.antigravityignore` ke root proyek tim sebagai `.antigravityignore` agar folder build (`bin/`, `obj/`, `node_modules/`, `.svelte-kit/`, `*.db-wal`, dll.) tidak memakan kuota token.
-  - Salin `templates/AGENTS.md` ke root proyek tim sebagai `AGENTS.md` lalu sesuaikan placeholder Tech Stack dan perintah build/test.
-- **Konfigurasi MCP (`mcp_config.example.json`):** Referensi konfigurasi MCP server (`context7`, `fetch`, `sqlite`) untuk digabungkan ke file konfigurasi MCP Antigravity Anda (`~/.gemini/antigravity/mcp_config.json`), jangan lupa sesuaikan path database SQLite lokal Anda.
+- **Real-World Prompt Examples ([CHEATSHEET.md](CHEATSHEET.md) | [Bahasa Indonesia](CHEATSHEET.id.md)):** 6 ready-to-use scenarios covering `sdlc-team-lead`, `dotnet-webforms-dev`, `db-data-engineer`, `devops-git-ops`, `qa-code-reviewer`, `pr-review-fixer`, and `ui-prototyper`.
+- **Team Project Templates (`templates/`):**
+  - Copy `templates/.antigravityignore` to your project root as `.antigravityignore` to keep build folders (`bin/`, `obj/`, `node_modules/`, `.svelte-kit/`, `*.db-wal`, etc.) out of context.
+  - Copy `templates/AGENTS.md` to your project root as `AGENTS.md` and fill in your stack and build/test commands.
+- **MCP Config (`mcp_config.example.json`):** Reference entries for `context7`, `fetch`, `sqlite`, `central_memory`, and `central_memory_local` to merge into `~/.gemini/antigravity/mcp_config.json`.
 
 ---
 
-## ✅ Cara Memverifikasi di Antigravity / Gemini CLI
+## ✅ Verifying Inside Antigravity / Gemini CLI
 
-1. Tutup dan buka kembali **Antigravity** (atau mulai sesi Gemini CLI baru).
-2. Pastikan agent utama (`sdlc-team-lead` dan `pr-review-fixer`) muncul di daftar pilihan agent/mode atau dapat dipanggil.
-3. Jalankan prompt uji singkat ke `sdlc-team-lead`, misalnya:
-   > *"Cek daftar subagent dan skill yang tersedia di konfigurasi saya saat ini."*
-4. Pastikan agent mengenali ke-7 subagent (`dotnet-cqrs-dev`, `dotnet-webforms-dev`, `frontend-mobile-dev`, `db-data-engineer`, `devops-git-ops`, `ui-prototyper`, `qa-code-reviewer`) serta aturan global di `GEMINI.md`.
+1. Restart **Antigravity** (or open a new Gemini CLI session).
+2. Confirm `sdlc-team-lead` and `pr-review-fixer` appear in your agent list.
+3. Run a quick smoke test with `sdlc-team-lead`:
+   > *"List all available subagents and skills in my current setup."*
+4. Verify all 7 subagents (`dotnet-cqrs-dev`, `dotnet-webforms-dev`, `frontend-mobile-dev`, `db-data-engineer`, `devops-git-ops`, `ui-prototyper`, `qa-code-reviewer`) and `GEMINI.md` guardrails are recognized.
 
 ---
 
 ## ❓ FAQ & Troubleshooting
 
-- **PowerShell menolak menjalankan `install.ps1` ("running scripts is disabled on this system"):**
-  Jalankan dengan flag bypass khusus untuk perintah tersebut:
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File .\install.ps1
-  ```
-- **Error izin SymbolicLink di Windows (`PrivilegeNotHeld`):**
-  PowerShell biasa (non-Administrator) tanpa Developer Mode tidak dapat membuat SymbolicLink. Skrip `install.ps1` sudah menangani ini secara otomatis dengan **fallback menyalin file langsung** ke `.gemini\antigravity\agents\`, sehingga agent tetap berfungsi normal.
-- **`install.sh` error `\r: command not found` di Linux/macOS:**
-  Jika file mengalami konversi baris CRLF saat transfer, jalankan `sed -i 's/\r$//' install.sh` (Linux) atau gunakan `bash install.sh`.
-- **Saya sudah punya `GEMINI.md` pribadi:**
-  Jangan khawatir—baik `install.ps1` maupun `install.sh` tidak akan langsung menimpa `GEMINI.md` Anda. Skrip akan menanyakan apakah ingin membuat backup + menimpa, backup + menggabungkan (`merge`), atau melewati (`skip`).
+- **PowerShell blocks `install.ps1` ("running scripts is disabled on this system"):**
+  Run with `powershell -ExecutionPolicy Bypass -File .\install.ps1`.
+- **Windows SymbolicLink permission error (`PrivilegeNotHeld`):**
+  `install.ps1` automatically falls back to direct file copies into `.gemini\antigravity\agents\`.
+- **`install.sh` error `\r: command not found` on Linux/macOS:**
+  Run `sed -i 's/\r$//' install.sh` or invoke via `bash install.sh`.
+- **I already have a personal `GEMINI.md`:**
+  The installer never blindly overwrites it—you can choose backup + `overwrite`, backup + `merge`, or `skip`.

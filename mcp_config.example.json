@@ -21,6 +21,29 @@
         "--db-path",
         "/path/to/your/database.db"
       ]
+    },
+    "central_memory": {
+      "command": "<USER_HOME>/.gemini/mcp/.venv/Scripts/python.exe",
+      "args": [
+        "<USER_HOME>/.gemini/mcp/central_memory_mcp.py"
+      ],
+      "env": {
+        "AGENT_HUB_DIR": "<USER_HOME>/.gemini",
+        "AGENT_ROLE": "antigravity",
+        "QDRANT_URL": "<QDRANT_URL>",
+        "QDRANT_API_KEY": "<QDRANT_API_KEY>"
+      }
+    },
+    "central_memory_local": {
+      "command": "<USER_HOME>/.gemini/mcp/.venv/Scripts/python.exe",
+      "args": [
+        "<USER_HOME>/.gemini/mcp/central_memory_mcp.py"
+      ],
+      "env": {
+        "AGENT_HUB_DIR": "<USER_HOME>/.gemini",
+        "AGENT_ROLE": "antigravity",
+        "QDRANT_LOCAL_PATH": "<USER_HOME>/.gemini/memory/qdrant_local"
+      }
     }
   }
 }

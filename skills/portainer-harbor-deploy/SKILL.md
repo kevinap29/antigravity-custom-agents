@@ -1,17 +1,16 @@
 ---
 name: portainer-harbor-deploy
-description: SOP dan template standar untuk deployment Docker/Portainer Stack di Ubuntu Linux VPS hemat RAM serta GitHub Actions CI/CD push image ke Harbor private container registry. Gunakan saat membuat atau memperbarui Dockerfile, docker-compose.yml Portainer, atau workflow Harbor CI/CD.
+description: Standard SOP and templates for RAM-efficient Docker/Portainer Stack deployment on Ubuntu Linux VPS and GitHub Actions CI/CD image pushes to Harbor private container registry. Use when creating or updating Dockerfiles, Portainer docker-compose.yml, or Harbor CI/CD workflows.
 ---
 
 # Portainer & Harbor Deployment Guide
 
-Gunakan panduan ini untuk menjaga konsistensi stack Docker di Portainer dan pipeline CI/CD ke Harbor.
+Use this guide to maintain consistent Portainer Docker stacks and Harbor CI/CD pipelines.
 
-## 1. Template `docker-compose.yml` Ramah Portainer Stack & Hemat RAM
-
-- Hindari bind mount path relatif lokal yang rapuh pada Portainer GitOps/Web Editor; gunakan **named volume** atau path absolut yang terdokumentasi.
-- Gunakan placeholder `${VAR}` untuk seluruh konfigurasi environment dan secret (diisi melalui Portainer Stack Env).
-- Wajib sertakan `restart: unless-stopped`, `healthcheck`, `mem_limit`, dan rotasi log `json-file`.
+## 1. RAM-Efficient, Portainer-Friendly `docker-compose.yml`
+- Avoid fragile relative bind mounts in Portainer GitOps/Web Editor; use **named volumes** or documented absolute paths.
+- Use `${VAR}` placeholders for all environment configs and secrets (populated via Portainer Stack Env).
+- Always include `restart: unless-stopped`, `healthcheck`, `mem_limit`, and `json-file` log rotation.
 
 ```yaml
 services:
@@ -43,16 +42,14 @@ volumes:
   app_data:
 ```
 
-## 2. Checklist Dockerfile Hemat RAM (Multi-Stage & Non-Root)
+## 2. RAM-Efficient Dockerfile Checklist (Multi-Stage & Non-Root)
+1. Use multi-stage builds (`sdk` for restore/publish; `aspnet` / `node:alpine` / `distroless` for runtime).
+2. Create and run the container under a non-root user.
+3. Exclude `.git`, `node_modules`, `bin`, `obj`, and `.env`/secret files via `.dockerignore`.
 
-1. Gunakan multi-stage build (`sdk` untuk restore/publish, `aspnet` / `node:alpine` / `distroless` untuk runtime).
-2. Buat dan jalankan container dengan user non-root.
-3. Jangan salin `.git`, `node_modules`, `bin`, `obj`, atau file `.env`/secret ke image (gunakan `.dockerignore`).
-
-## 3. GitHub Actions CI/CD ke Harbor Registry
-
-- Simpan kredensial di GitHub Secrets (`HARBOR_REGISTRY`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`, opsional `PORTAINER_WEBHOOK_URL`).
-- Gunakan tag immutable (`sha-<short>` dan semver jika tag release), bukan hanya `:latest`.
+## 3. GitHub Actions CI/CD to Harbor Registry
+- Store credentials in GitHub Secrets (`HARBOR_REGISTRY`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`, optional `PORTAINER_WEBHOOK_URL`).
+- Use immutable tags (`sha-<short>` and semver on release tags), not `:latest`-only.
 
 ```yaml
 name: Build and Push to Harbor
@@ -93,8 +90,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 ```
 
-## 4. Verifikasi Sebelum Selesai
-
-1. Validasi sintaks YAML (`python -c "import yaml; yaml.safe_load(open('...'))"` jika `pyyaml` tersedia, atau `docker compose config --no-interpolate` jika Docker CLI ada).
-2. Pastikan nol hardcoded password/token/connection string di YAML atau Dockerfile.
-3. Perbarui `README.md`/`AGENTS.md` bila ada variabel env atau port baru yang wajib diset di Portainer.
+## 4. Pre-Finish Verification
+1. Validate YAML syntax (`python -c "import yaml; yaml.safe_load(open('...'))"` if `pyyaml` exists, or `docker compose config --no-interpolate` if Docker CLI exists).
+2. Confirm zero hardcoded passwords, tokens, or connection strings in YAML or Dockerfiles.
+3. Update `README.md`/`AGENTS.md` if new env vars or ports must be configured in Portainer.

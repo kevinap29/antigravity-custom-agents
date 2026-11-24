@@ -1,82 +1,84 @@
 # 🎯 Antigravity Custom Agents — Prompt Cheatsheet
 
-Panduan cepat contoh prompt nyata untuk memicu masing-masing agent dan workflow di **Antigravity / Gemini CLI**.
+🌐 **English** | [Bahasa Indonesia](CHEATSHEET.id.md)
+
+Quick reference of real-world prompts to trigger each agent and workflow in **Antigravity / Gemini CLI**.
 
 ---
 
-## 1. Fitur Fullstack Baru (.NET CQRS + SvelteKit) — `sdlc-team-lead`
+## 1. New Fullstack Feature (.NET CQRS + SvelteKit) — `sdlc-team-lead`
 
-Gunakan Main Agent `sdlc-team-lead` saat membangun fitur end-to-end agar perencanaan, backend, frontend, dan QA terkoordinasi otomatis.
+Use Main Agent `sdlc-team-lead` for end-to-end features so planning, backend, frontend, and QA are automatically coordinated.
 
 ```text
-@sdlc-team-lead Saya ingin menambah fitur Manajemen Shift Karyawan:
-- Backend (.NET 8 CQRS): endpoint GET/POST/PUT /api/shifts dengan validasi bentrok jam.
-- Database (SQLite WAL): tabel `shifts` (DB-first, buat skrip SQL terpisah).
-- Frontend (SvelteKit + Tailwind): halaman `/shifts` dengan modal form tambah/edit.
-Tolong buat plan dulu di .gemini/plans/, lalu delegasikan implementasi dan akhiri dengan QA review.
+@sdlc-team-lead I want to add an Employee Shift Management feature:
+- Backend (.NET 8 CQRS): GET/POST/PUT /api/shifts endpoints with overlap validation.
+- Database (SQLite WAL): `shifts` table (DB-first, create a standalone SQL script).
+- Frontend (SvelteKit + Tailwind): `/shifts` page with an add/edit modal form.
+Create a plan in .gemini/plans/ first, delegate implementation, and finish with a QA review.
 ```
 
 ---
 
-## 2. Fitur & Maintenance Legacy ASP.NET WebForms — `dotnet-webforms-dev`
+## 2. Legacy ASP.NET WebForms Maintenance & Features — `dotnet-webforms-dev`
 
-Cocok untuk proyek `.NET Framework 4.x` (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET).
+Ideal for `.NET Framework 4.x` projects (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET).
 
 ```text
-@dotnet-webforms-dev Tambahkan kolom filter "Status Approval" pada halaman `Pages/ApprovalList.aspx` beserta binding ke `GridView` di `ApprovalList.aspx.cs`.
-Pastikan sinkronisasi `.designer.cs` dan pendaftaran file di `.csproj` non-SDK tetap utuh tanpa merusak ViewState atau event eksisting.
+@dotnet-webforms-dev Add an "Approval Status" filter dropdown to `Pages/ApprovalList.aspx` and bind it to the `GridView` in `ApprovalList.aspx.cs`.
+Ensure `.designer.cs` stays synced and non-SDK `.csproj` entries remain intact without breaking ViewState or existing events.
 ```
 
 ---
 
-## 3. Desain DB-First & T-SQL — `db-data-engineer`
+## 3. DB-First Design & T-SQL — `db-data-engineer`
 
-Gunakan untuk merancang skema tabel, index, stored procedure, atau optimasi query SQLite/SQL Server (tanpa Code-First migration).
+Use for table schemas, indexing, stored procedures, or SQLite/SQL Server query optimization (no Code-First migrations).
 
 ```text
-@db-data-engineer Buatkan skrip SQL DB-first untuk SQL Server:
-1. Tabel `InventoryTransactions` dengan index komposit `(WarehouseId, CreatedAt DESC)`.
-2. Stored procedure `usp_RecordStockMovement` yang atomik (transaksi + validasi stok minus).
-Jangan eksekusi SQL langsung ke database; simpan hasilnya ke folder `database/scripts/` untuk direview.
+@db-data-engineer Create DB-first SQL scripts for SQL Server:
+1. `InventoryTransactions` table with composite index `(WarehouseId, CreatedAt DESC)`.
+2. Atomic stored procedure `usp_RecordStockMovement` (transaction + negative stock validation).
+Do not execute SQL directly against the database; save scripts to `database/scripts/` for review.
 ```
 
 ---
 
 ## 4. Portainer Stack, Docker & Harbor CI/CD — `devops-git-ops`
 
-Gunakan untuk membuat `Dockerfile` multi-stage hemat RAM, `docker-compose.yml` ramah Portainer, workflow GitHub Actions ke Harbor, atau konfigurasi `systemd`/`cloudflared`.
+Use for RAM-efficient multi-stage `Dockerfile`, Portainer-friendly `docker-compose.yml`, GitHub Actions pushing to Harbor, or `systemd`/`cloudflared`.
 
 ```text
-@devops-git-ops Siapkan konfigurasi deployment untuk service .NET 8 API ini:
-1. `Dockerfile` multi-stage non-root user.
-2. `docker-compose.yml` ramah Portainer Stack (named volume, healthcheck, log rotation, mem_limit 512m).
-3. Workflow `.github/workflows/build-push-harbor.yml` untuk build dan push image bertag commit SHA & semver ke Harbor registry.
+@devops-git-ops Prepare deployment configs for this .NET 8 API service:
+1. Multi-stage `Dockerfile` with a non-root user.
+2. Portainer-friendly `docker-compose.yml` (named volumes, healthcheck, log rotation, mem_limit 512m).
+3. `.github/workflows/build-push-harbor.yml` to build and push images tagged with commit SHA & semver to Harbor registry.
 ```
 
 ---
 
-## 5. Review PR, Keamanan & Zero-Regression — `qa-code-reviewer` & `pr-review-fixer`
+## 5. PR Review, Security & Zero-Regression — `qa-code-reviewer` & `pr-review-fixer`
 
-- **Audit kualitas & regresi sebelum merge (`qa-code-reviewer`):**
+- **Pre-merge quality & regression audit (`qa-code-reviewer`):**
   ```text
-  @qa-code-reviewer Lakukan audit perubahan pada branch saat ini terhadap `main`.
-  Periksa sinkronisasi kontrak DTO API vs SvelteKit, potensi N+1 query, IDisposable, dan jalankan `dotnet test` serta `npm run check`.
+  @qa-code-reviewer Audit changes on the current branch against `main`.
+  Verify API vs SvelteKit DTO contract sync, check for N+1 queries and IDisposable leaks, and run `verify-gate.ps1` / `dotnet test` / `npm run check`.
   ```
-- **Eksekusi komentar review PR bot/reviewer (`pr-review-fixer`):**
+- **Execute PR bot/reviewer comments (`pr-review-fixer`):**
   ```text
-  @pr-review-fixer Berikut daftar komentar review pada PR #42:
-  1. [File: OrderHandler.cs:58] Gunakan transaksi atomik saat update stok dan status order.
-  2. [File: +page.svelte:112] Tangani state error 409 Conflict dari API.
-  Tolong perbaiki dengan minimal diff, jalankan ulang test, lalu buatkan draft balasan markdown siap salin untuk setiap komentar.
+  @pr-review-fixer Here are the review comments on PR #42:
+  1. [File: OrderHandler.cs:58] Use an atomic transaction when updating stock and order status.
+  2. [File: +page.svelte:112] Handle 409 Conflict API error state.
+  Fix with minimal diff, re-run tests, and draft copy-ready markdown replies for each comment.
   ```
 
 ---
 
-## 6. HTML Prototype Standalone — `ui-prototyper`
+## 6. Standalone HTML Prototype — `ui-prototyper`
 
-Gunakan sebelum menulis kode SvelteKit atau Blazor untuk validasi layout & UX dengan cepat.
+Use before writing SvelteKit or Blazor code to validate layout & UX quickly (aligned with the project's CSS/icon/chart packages).
 
 ```text
-@ui-prototyper Buatkan prototipe UI interaktif standalone (1 file HTML + Tailwind CDN + Alpine/Vanilla JS) untuk halaman "Dashboard Monitoring Tiket".
-Harus ada filter status, search bar real-time, tabel responsif, dan slide-over detail tiket dengan data dummy yang realistis.
+@ui-prototyper Create an interactive standalone HTML prototype (matching our project's CSS/icon packages) for the "Ticket Monitoring Dashboard" page.
+Include status filters, real-time search bar, responsive table, and a ticket detail slide-over with realistic dummy data.
 ```
