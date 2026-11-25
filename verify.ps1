@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Verifikasi kesehatan instalasi Antigravity Custom Agents, Skills, RTK Plugin,
+    Verifikasi kesehatan instalasi Antigravity Custom Agents, SDLC Plugin, RTK Plugin,
     Deterministic Gate, GEMINI.md, serta Add-ons aktif (~/.gemini/.addons.json).
 .DESCRIPTION
     Memeriksa seluruh komponen Core dan komponen Add-on (Central Memory MCP sesuai qdrantMode
@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $geminiDir = Join-Path $HOME ".gemini"
 $configAgentsDir = Join-Path $geminiDir "config\agents"
 $antigravityAgentsDir = Join-Path $geminiDir "antigravity\agents"
-$configSkillsDir = Join-Path $geminiDir "config\skills"
+$configSdlcDir = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
 $configRtkDir = Join-Path $geminiDir "config\plugins\rtk"
 $scriptsDir = Join-Path $geminiDir "scripts"
 $mcpDir = Join-Path $geminiDir "mcp"
@@ -38,10 +38,14 @@ $expectedAgents = @(
     "ui-prototyper.md"
 )
 
-$expectedSkills = @(
-    "dotnet-webforms-patterns",
-    "frontend-mobile-patterns",
-    "portainer-harbor-deploy"
+$expectedSdlcFiles = @(
+    "plugin.json",
+    "hooks.json",
+    "hooks\sdlc-guardrails.mjs",
+    "rules\ENGINEERING_RULES.md",
+    "skills\dotnet-webforms-patterns\SKILL.md",
+    "skills\frontend-mobile-patterns\SKILL.md",
+    "skills\portainer-harbor-deploy\SKILL.md"
 )
 
 $expectedRtkFiles = @(
@@ -71,7 +75,7 @@ if (Test-Path $addonsProfilePath) {
 $okCount = 0
 $warnCount = 0
 $failCount = 0
-$totalRequired = ($expectedAgents.Count * 2) + $expectedSkills.Count + $expectedRtkFiles.Count + 2
+$totalRequired = ($expectedAgents.Count * 2) + $expectedSdlcFiles.Count + $expectedRtkFiles.Count + 2
 if ($centralMemoryEnabled) {
     $totalRequired += 4
     if ($qdrantMode -eq "local" -or $qdrantMode -eq "localhost") {
@@ -128,10 +132,27 @@ foreach ($agent in $expectedAgents) {
     if (Test-BundleFile -Path $path -Label "antigravity\agents\$agent") { $okCount++ } else { $failCount++ }
 }
 
-Write-Host "`n[3/7] Memeriksa Custom Skills ($($expectedSkills.Count) skill)..." -ForegroundColor Cyan
-foreach ($skill in $expectedSkills) {
-    $path = Join-Path $configSkillsDir "$skill\SKILL.md"
-    if (Test-BundleFile -Path $path -Label "config\skills\$skill\SKILL.md") { $okCount++ } else { $failCount++ }
+Write-Host "`n[3/7] Memeriksa Plugin antigravity-sdlc ($($expectedSdlcFiles.Count) file)..." -ForegroundColor Cyan
+foreach ($sdlcFile in $expectedSdlcFiles) {
+    $path = Join-Path $configSdlcDir $sdlcFile
+    if (Test-BundleFile -Path $path -Label "config\plugins\antigravity-sdlc\$sdlcFile") { $okCount++ } else { $failCount++ }
+}
+
+$sdlcHooksPath = Join-Path $configSdlcDir "hooks.json"
+if (Test-Path -LiteralPath $sdlcHooksPath) {
+    $sdlcHooksRaw = Get-Content -LiteralPath $sdlcHooksPath -Raw -Encoding UTF8
+    if ($sdlcHooksRaw -match '__HOOK_SCRIPT_PATH__') {
+        Write-Host "  [WARN] hooks.json masih berisi placeholder __HOOK_SCRIPT_PATH__ (jalankan install.ps1 / update.ps1)" -ForegroundColor Yellow
+        $warnCount++
+    }
+}
+
+$nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+if ($null -ne $nodeCmd) {
+    Write-Host "  [OK]   Binary CLI 'node' tersedia di PATH ($($nodeCmd.Source))" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] Binary CLI 'node' belum ada di PATH (hook antigravity-sdlc-guardrails dinonaktifkan)" -ForegroundColor Yellow
+    $warnCount++
 }
 
 Write-Host "`n[4/7] Memeriksa Plugin RTK & Binary CLI..." -ForegroundColor Cyan
@@ -201,6 +222,25 @@ if ($sshTunnelEnabled) {
         Write-Host "  [OK]   OpenSSH client tersedia di PATH" -ForegroundColor Green
     } else {
         Write-Host "  [WARN] ssh client tidak ditemukan di PATH" -ForegroundColor Yellow
+        $warnCount++
+    }
+
+    $sshHostEnv = [Environment]::GetEnvironmentVariable("QDRANT_SSH_HOST", "User")
+    if ([string]::IsNullOrWhiteSpace($sshHostEnv)) {
+        $sshHostEnv = $env:QDRANT_SSH_HOST
+    }
+    $sshPortEnv = [Environment]::GetEnvironmentVariable("QDRANT_SSH_PORT", "User")
+    if ([string]::IsNullOrWhiteSpace($sshPortEnv)) {
+        $sshPortEnv = $env:QDRANT_SSH_PORT
+    }
+    if ([string]::IsNullOrWhiteSpace($sshPortEnv)) {
+        $sshPortEnv = "22"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($sshHostEnv) -and ($sshHostEnv -notmatch '<SSH_USER>|<VPS_IP>')) {
+        Write-Host "  [OK]   Env var QDRANT_SSH_HOST tersedia ($sshHostEnv, port $sshPortEnv)" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARN] Env var QDRANT_SSH_HOST belum diset (tunnel akan gagal saat logon/restart)" -ForegroundColor Yellow
         $warnCount++
     }
 } else {

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Sinkronisasi & update Antigravity Custom Agents, Skills, RTK Plugin, Deterministic Gate,
+    Sinkronisasi & update Antigravity Custom Agents, SDLC Plugin, RTK Plugin, Deterministic Gate,
     serta Add-ons aktif (~/.gemini/.addons.json) ke ~/.gemini.
 .DESCRIPTION
     Menjalankan 'git pull --ff-only' bila dijalankan di dalam repositori Git yang memiliki remote,

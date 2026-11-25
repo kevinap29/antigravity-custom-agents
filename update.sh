@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sinkronisasi & update Antigravity Custom Agents, Skills, RTK Plugin, Deterministic Gate,
+# Sinkronisasi & update Antigravity Custom Agents, SDLC Plugin, RTK Plugin, Deterministic Gate,
 # serta Add-ons aktif (~/.gemini/.addons.json) ke ~/.gemini.
 
 GEMINI_MD_MODE="skip"

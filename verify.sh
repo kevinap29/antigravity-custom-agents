@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verifikasi kesehatan instalasi Antigravity Custom Agents, Skills, RTK Plugin,
+# Verifikasi kesehatan instalasi Antigravity Custom Agents, SDLC Plugin, RTK Plugin,
 # Deterministic Gate, GEMINI.md, serta Add-ons aktif (~/.gemini/.addons.json).
 
 GEMINI_DIR="${HOME}/.gemini"
 CONFIG_AGENTS_DIR="${GEMINI_DIR}/config/agents"
 ANTIGRAVITY_AGENTS_DIR="${GEMINI_DIR}/antigravity/agents"
-CONFIG_SKILLS_DIR="${GEMINI_DIR}/config/skills"
+CONFIG_SDLC_DIR="${GEMINI_DIR}/config/plugins/antigravity-sdlc"
 CONFIG_RTK_DIR="${GEMINI_DIR}/config/plugins/rtk"
 SCRIPTS_DIR="${GEMINI_DIR}/scripts"
 MCP_DIR="${GEMINI_DIR}/mcp"
@@ -28,10 +28,14 @@ EXPECTED_AGENTS=(
   "ui-prototyper.md"
 )
 
-EXPECTED_SKILLS=(
-  "dotnet-webforms-patterns"
-  "frontend-mobile-patterns"
-  "portainer-harbor-deploy"
+EXPECTED_SDLC_FILES=(
+  "plugin.json"
+  "hooks.json"
+  "hooks/sdlc-guardrails.mjs"
+  "rules/ENGINEERING_RULES.md"
+  "skills/dotnet-webforms-patterns/SKILL.md"
+  "skills/frontend-mobile-patterns/SKILL.md"
+  "skills/portainer-harbor-deploy/SKILL.md"
 )
 
 EXPECTED_RTK_FILES=(
@@ -64,7 +68,7 @@ NC='\033[0m'
 ok_count=0
 warn_count=0
 fail_count=0
-total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SKILLS[@]} + ${#EXPECTED_RTK_FILES[@]} + 2 ))
+total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SDLC_FILES[@]} + ${#EXPECTED_RTK_FILES[@]} + 2 ))
 if [[ "${CENTRAL_MEMORY_ENABLED}" == "true" ]]; then
   total_required=$((total_required + 4))
   if [[ "${QDRANT_MODE}" == "local" || "${QDRANT_MODE}" == "localhost" ]]; then
@@ -122,10 +126,22 @@ for agent in "${EXPECTED_AGENTS[@]}"; do
 done
 
 echo ""
-echo -e "${CYAN}[3/6] Memeriksa Custom Skills (${#EXPECTED_SKILLS[@]} skill)...${NC}"
-for skill in "${EXPECTED_SKILLS[@]}"; do
-  check_file "${CONFIG_SKILLS_DIR}/${skill}/SKILL.md" "config/skills/${skill}/SKILL.md" || true
+echo -e "${CYAN}[3/6] Memeriksa Plugin antigravity-sdlc (${#EXPECTED_SDLC_FILES[@]} file)...${NC}"
+for sdlc_file in "${EXPECTED_SDLC_FILES[@]}"; do
+  check_file "${CONFIG_SDLC_DIR}/${sdlc_file}" "config/plugins/antigravity-sdlc/${sdlc_file}" || true
 done
+
+if [[ -f "${CONFIG_SDLC_DIR}/hooks.json" ]] && grep -q '__HOOK_SCRIPT_PATH__' "${CONFIG_SDLC_DIR}/hooks.json"; then
+  echo -e "  ${YELLOW}[WARN] hooks.json masih berisi placeholder __HOOK_SCRIPT_PATH__ (jalankan install.sh / update.sh)${NC}"
+  warn_count=$((warn_count + 1))
+fi
+
+if command -v node >/dev/null 2>&1; then
+  echo -e "  ${GREEN}[OK]   Binary CLI 'node' tersedia di PATH ($(command -v node))${NC}"
+else
+  echo -e "  ${YELLOW}[WARN] Binary CLI 'node' belum ada di PATH (hook antigravity-sdlc-guardrails dinonaktifkan)${NC}"
+  warn_count=$((warn_count + 1))
+fi
 
 echo ""
 echo -e "${CYAN}[4/6] Memeriksa Plugin RTK & Binary CLI...${NC}"

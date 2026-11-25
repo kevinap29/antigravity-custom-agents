@@ -2,8 +2,8 @@
 .SYNOPSIS
     Rollback / uninstall komponen bundle Antigravity Custom Agents secara aman dan idempoten.
 .DESCRIPTION
-    Menghapus hanya 9 agent bundle, 3 skill bundle, dan plugin RTK dari ~/.gemini
-    tanpa menyentuh file pribadi, custom agent/skill lain, atau GEMINI.md milik user.
+    Menghapus hanya 9 agent bundle, plugin antigravity-sdlc (termasuk 3 legacy skill bundle bila masih ada),
+    dan plugin RTK dari ~/.gemini tanpa menyentuh file pribadi, custom agent/skill lain, atau GEMINI.md milik user.
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 #>
@@ -17,6 +17,7 @@ $geminiDir = Join-Path $HOME ".gemini"
 $configAgentsDir = Join-Path $geminiDir "config\agents"
 $antigravityAgentsDir = Join-Path $geminiDir "antigravity\agents"
 $configSkillsDir = Join-Path $geminiDir "config\skills"
+$configSdlcDir = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
 $configRtkDir = Join-Path $geminiDir "config\plugins\rtk"
 
 $bundleAgents = @(
@@ -57,13 +58,19 @@ foreach ($agent in $bundleAgents) {
     }
 }
 
-Write-Host "`n[2/3] Menghapus 3 Custom Skills bundle..." -ForegroundColor Yellow
+Write-Host "`n[2/3] Menghapus Plugin antigravity-sdlc & legacy skills bundle..." -ForegroundColor Yellow
+$sdlcItem = Get-Item -LiteralPath $configSdlcDir -Force -ErrorAction SilentlyContinue
+if ($null -ne $sdlcItem) {
+    Remove-Item -LiteralPath $configSdlcDir -Recurse -Force
+    Write-Host "  [-] Dihapus: $configSdlcDir" -ForegroundColor Gray
+    $removedCount++
+}
 foreach ($skill in $bundleSkills) {
     $skillPath = Join-Path $configSkillsDir $skill
     $item = Get-Item -LiteralPath $skillPath -Force -ErrorAction SilentlyContinue
     if ($null -ne $item) {
         Remove-Item -LiteralPath $skillPath -Recurse -Force
-        Write-Host "  [-] Dihapus: $skillPath" -ForegroundColor Gray
+        Write-Host "  [-] Dihapus (legacy): $skillPath" -ForegroundColor Gray
         $removedCount++
     }
 }

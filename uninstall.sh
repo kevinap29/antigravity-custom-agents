@@ -2,12 +2,14 @@
 set -euo pipefail
 
 # Rollback / uninstall komponen bundle Antigravity Custom Agents secara aman dan idempoten.
-# Hanya menghapus 9 agent bundle, 3 skill bundle, dan plugin RTK tanpa menyentuh file lain di ~/.gemini.
+# Hanya menghapus 9 agent bundle, plugin antigravity-sdlc (termasuk 3 legacy skill bundle),
+# dan plugin RTK tanpa menyentuh file lain di ~/.gemini.
 
 GEMINI_DIR="${HOME}/.gemini"
 CONFIG_AGENTS_DIR="${GEMINI_DIR}/config/agents"
 ANTIGRAVITY_AGENTS_DIR="${GEMINI_DIR}/antigravity/agents"
 CONFIG_SKILLS_DIR="${GEMINI_DIR}/config/skills"
+CONFIG_SDLC_DIR="${GEMINI_DIR}/config/plugins/antigravity-sdlc"
 CONFIG_RTK_DIR="${GEMINI_DIR}/config/plugins/rtk"
 
 BUNDLE_AGENTS=(
@@ -54,12 +56,17 @@ for agent in "${BUNDLE_AGENTS[@]}"; do
 done
 
 echo ""
-echo -e "${YELLOW}[2/3] Menghapus 3 Custom Skills bundle...${NC}"
+echo -e "${YELLOW}[2/3] Menghapus Plugin antigravity-sdlc & legacy skills bundle...${NC}"
+if [[ -e "${CONFIG_SDLC_DIR}" || -L "${CONFIG_SDLC_DIR}" ]]; then
+  rm -rf "${CONFIG_SDLC_DIR}"
+  echo "  [-] Dihapus: ${CONFIG_SDLC_DIR}"
+  removed_count=$((removed_count + 1))
+fi
 for skill in "${BUNDLE_SKILLS[@]}"; do
   skill_path="${CONFIG_SKILLS_DIR}/${skill}"
   if [[ -e "${skill_path}" || -L "${skill_path}" ]]; then
     rm -rf "${skill_path}"
-    echo "  [-] Dihapus: ${skill_path}"
+    echo "  [-] Dihapus (legacy): ${skill_path}"
     removed_count=$((removed_count + 1))
   fi
 done

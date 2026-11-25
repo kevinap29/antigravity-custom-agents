@@ -1,4 +1,4 @@
-# 🚀 Antigravity Custom Agents, Skills & RTK Plugin
+# 🚀 Antigravity Custom Agents & Modular Plugins
 
 🌐 **English** | [Bahasa Indonesia](README.id.md)
 
@@ -9,7 +9,7 @@
 [![RTK](https://img.shields.io/badge/RTK-Token%20Optimizer-10B981?style=flat-square)](https://github.com/rtk-ai/rtk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-Ready-to-use collection of **9 Custom Agents**, **3 Custom Skills**, **RTK Plugin (Token Optimizer)**, **Deterministic Quality/Security Gate**, **Optional Central Memory MCP (Qdrant)**, and **Global Developer Profile & Guardrails (`GEMINI.md`)** for **Antigravity / Gemini CLI**. Designed for full-stack SDLC workflows (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, and Docker/Portainer/Harbor VPS).
+Ready-to-use collection of **9 Custom Agents**, **2 Modular Plugins (`antigravity-sdlc` bundle + `rtk` Token Optimizer)**, **Deterministic Quality/Security Gate**, **Optional Central Memory MCP (Qdrant)**, and a **Slim Personal Developer Profile (`GEMINI.md`)** for **Antigravity / Gemini CLI**. Designed for full-stack SDLC workflows (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, and Docker/Portainer/Harbor VPS).
 
 ---
 
@@ -33,20 +33,23 @@ chmod +x install.sh && ./install.sh
 
 ---
 
-## ✨ Key Features (v1.5 Upgrade)
+## ✨ Key Features (v2.0 Modular Plugin Bundle)
 
 - **9 Structured Custom Agents:** 2 Main Agents (`sdlc-team-lead` & `pr-review-fixer`) and 7 domain-specialist Subagents.
-- **SDLC v1.5 Architecture (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
+- **Modular `antigravity-sdlc` Plugin (`plugins/antigravity-sdlc/`):**
+  - **Bundled 3 Domain Skills (`skills/`):** Reusable patterns (WebForms, SvelteKit/MAUI, Portainer/Harbor) packaged cleanly inside the plugin.
+  - **Auto-Updated Engineering Rules (`rules/ENGINEERING_RULES.md`):** Static rules (DB-first, Git branching, Searchable Dropdown, DRY/KISS, Zero Regression, Doc Sync, PowerShell & RTK) live in the plugin so `update` refreshes them cleanly without overwriting your personal `GEMINI.md`.
+  - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Zero-dependency Node.js hook that blocks `git push` to `main`/`master`/`develop`, direct DB CLIs (`sqlcmd`, `sqlite3`, `psql`, `mysql`), and EF Core Code-First migrations (`dotnet ef migrations` / `dotnet ef database update`). Auto-disables safely if `node` is not installed.
+- **Independent RTK Plugin (`plugins/rtk/`):** Standalone 3rd-party token optimizer hook (`rtk hook antigravity`) kept separate so it can be toggled or updated independently.
+- **SDLC v1.5+ Architecture (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
   - **4-Lane Complexity Matrix:** `Lane 0 (docs)` handled directly by Team Lead, `Lane 1 (micro < 30 lines)` skips plan file using `Model: flash`, and `Lane 2/3 (standard/complex)` runs full Phase 0–5.
   - **Contract Freeze Gate:** Parallel execution is only allowed after Phase 0 DTO contracts are finalized & pass the Ambiguity Gate, capped at **max 2 parallel subagents**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 remains optional (skipped for backend-only/minor tasks). When a prototype is created (`_prototypes/<feature-slug>.html`), `ui-prototyper` aligns with the project's CSS/icon/chart packages + *Component Mapping Note*, followed by a *Prototype Approval Gate*, 1:1 conversion by `frontend-mobile-dev`, and *Prototype Parity Audit* by `qa-code-reviewer`.
   - **Progressive Model Escalation:** If `qa-code-reviewer` emits `[CRITICAL][ESCALATE_MODEL]` or a `flash` subagent fails on iteration 2+, Team Lead spawns a new subagent with a higher model tier (`flash` → `inherit` → `pro`).
 - **Deterministic Quality & Security Gate (`scripts/verify-gate.ps1`):** Auto-detects `.NET` (`dotnet build`/`test`), `Node/SvelteKit` (`npm run check`/`build`/`test`), `Python` (`pytest`), plus static security scanners (`gitleaks`, `trivy`, and `semgrep` on Unix/macOS).
 - **Optional Central Memory MCP (`mcp/central_memory_mcp.py` + Qdrant):** Cross-session semantic memory (`BAAI/bge-small-en-v1.5` local CPU embeddings via `fastembed` + 3 Qdrant modes: Local Embedded / Localhost Server / Remote VPS, `git_tree_hash` staleness protection), plus an optional auto-reconnecting SSH tunnel for restricted/office networks.
-- **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Auto-detects OS & installed tools (e.g., automatically skips `semgrep` on Windows), separates **Core** from optional **Add-ons**, and persists selections in `~/.gemini/.addons.json` for `update` & `verify`.
-- **3 Domain Skills & RTK Plugin (Token Optimizer):** Reusable patterns (WebForms, SvelteKit/MAUI, Portainer/Harbor) + RTK terminal output compression hook.
-- **Token-Efficient English Prompts + Configurable Response Language:** All `agents/*.md`, `skills/*/SKILL.md`, and `GEMINI.md` are written in concise bullet-style English to save ~20–30% tokens and improve precision on smaller models (`flash`), with configurable user response language (`-ResponseLanguage` / `--response-language`, default `English`) and concise tone (`Direct, concise, technical; no filler or redundant recaps.`) in `GEMINI.md`.
-- **Global Developer Profile (`GEMINI.md`):** Enforces DB-first, DRY, Zero Regression, KISS, and Doc Sync across every session.
+- **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Auto-detects OS & installed tools (e.g., automatically skips `semgrep` on Windows, checks `node` for guardrails), auto-migrates legacy `config/skills/` bundle folders, and persists Add-on selections in `~/.gemini/.addons.json` for `update` & `verify`.
+- **Token-Efficient English Prompts + Slim Personal Profile (`GEMINI.md`):** All `agents/*.md`, `plugins/antigravity-sdlc/skills/*/SKILL.md`, and `ENGINEERING_RULES.md` are written in concise bullet-style English, while `GEMINI.md` stays lightweight (only your Tech Stack, Response Language `-ResponseLanguage`/`--response-language`, and Tone).
 
 ---
 
@@ -64,12 +67,19 @@ antigravity-custom-agents/
 │   ├── devops-git-ops.md       # Subagent: Git, CI/CD, Docker/Portainer/Harbor, VPS
 │   ├── ui-prototyper.md        # Subagent: Standalone HTML prototyping + Package Alignment
 │   └── qa-code-reviewer.md     # Subagent: Code quality, build, security & parity auditor
-├── skills/                     # 3 domain skills
-│   ├── dotnet-webforms-patterns/SKILL.md
-│   ├── frontend-mobile-patterns/SKILL.md
-│   └── portainer-harbor-deploy/SKILL.md
-├── plugins/                    # Antigravity plugins
-│   └── rtk/
+├── plugins/                    # 2 independent Antigravity plugins
+│   ├── antigravity-sdlc/       # Modular SDLC bundle (skills, rules, PreToolUse guardrails)
+│   │   ├── plugin.json         # Plugin metadata (v2.0.0)
+│   │   ├── hooks.json          # PreToolUse guardrail hook config (auto-resolved on install)
+│   │   ├── hooks/
+│   │   │   └── sdlc-guardrails.mjs # Node.js guardrail (protected branches, DB CLI, EF migrations)
+│   │   ├── rules/
+│   │   │   └── ENGINEERING_RULES.md # Static engineering guardrails (auto-updated)
+│   │   └── skills/             # 3 bundled domain skills
+│   │       ├── dotnet-webforms-patterns/SKILL.md
+│   │       ├── frontend-mobile-patterns/SKILL.md
+│   │       └── portainer-harbor-deploy/SKILL.md
+│   └── rtk/                    # Independent RTK token optimizer plugin
 │       ├── plugin.json         # RTK plugin metadata
 │       ├── hooks.json          # PreToolUse hook (rtk hook antigravity)
 │       └── rules/AGENTS.md     # RTK usage & output recovery rules
@@ -88,7 +98,7 @@ antigravity-custom-agents/
 │   └── AGENTS.md               # Project conventions & build/test template
 ├── CHEATSHEET.md / .id.md      # Real-world prompt examples (English & Bahasa Indonesia)
 ├── mcp_config.example.json     # Example MCP config (context7, fetch, sqlite, central_memory)
-├── GEMINI.md                   # Global Developer Profile & Coding Guardrails
+├── GEMINI.md                   # Slim Personal Developer Profile (Tech Stack & Language/Tone)
 ├── install.ps1                 # Modular Windows Installer (Core + Add-ons + Env Check)
 ├── install.sh                  # Modular Linux / macOS Installer (Core + Add-ons + Env Check)
 ├── verify.ps1 / verify.sh      # Health-check for installed Core & Add-ons
@@ -113,17 +123,19 @@ antigravity-custom-agents/
 | `ui-prototyper` | Subagent | Interactive standalone HTML prototypes aligned with the project's CSS framework, icon library, and chart library. |
 | `qa-code-reviewer` | Subagent | Read-only quality & security audit, deterministic gate (`verify-gate.ps1`), API contract sync, Prototype Parity, DRY, Zero Regression, and Doc Sync. |
 
-### Custom Skills Overview (3 Skills)
+### Included Plugins (2 Modular Plugins)
 
-1. **`dotnet-webforms-patterns`**: Legacy .NET Framework 4.x / ASP.NET WebForms patterns & static verification (non-SDK `.csproj`, `.designer.cs` sync, EF6/LINQ/ADO.NET).
-2. **`frontend-mobile-patterns`**: SvelteKit (Svelte 4 vs Svelte 5 runes) and .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, Windows target builds).
-3. **`portainer-harbor-deploy`**: RAM-efficient Docker/Portainer Stack SOP on Ubuntu VPS and GitHub Actions workflows pushing to Harbor private registry.
+1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.0.0):**
+   - **Bundled Skills (`skills/`):**
+     - **`dotnet-webforms-patterns`**: Legacy .NET Framework 4.x / ASP.NET WebForms patterns & static verification (non-SDK `.csproj`, `.designer.cs` sync, EF6/LINQ/ADO.NET).
+     - **`frontend-mobile-patterns`**: SvelteKit (Svelte 4 vs Svelte 5 runes) and .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, Windows target builds).
+     - **`portainer-harbor-deploy`**: RAM-efficient Docker/Portainer Stack SOP on Ubuntu VPS and GitHub Actions workflows pushing to Harbor private registry.
+   - **Engineering Rules (`rules/ENGINEERING_RULES.md`):** Auto-injected static guardrails (DB-first, Git branching, searchable dropdowns, DRY/KISS, Zero Regression, Doc Sync, PowerShell & RTK) updated automatically without touching your personal `GEMINI.md`.
+   - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Zero-dependency Node.js hook blocking `git push` to `main`/`master`/`develop`, direct DB CLI invocations (`sqlcmd`, `sqlite3`, `psql`, `mysql`), and EF Core Code-First migrations (`dotnet ef migrations` / `dotnet ef database update`). Requires `node`; if unavailable, the installer safely sets `"enabled": false`.
+2. **`plugins/rtk/` (RTK Token Optimizer — Independent):**
+   - Provides `plugin.json`, `hooks.json`, and `rules/AGENTS.md` for transparent `PreToolUse` command rewriting (`rtk hook antigravity`) to condense verbose terminal output and save AI tokens.
 
-### Included Plugin: RTK (Token Optimizer)
-
-`plugins/rtk/` provides the **RTK** plugin (`plugin.json`, `hooks.json`, `rules/AGENTS.md`) for transparent `PreToolUse` command rewriting (`rtk hook antigravity`) to condense verbose terminal output and save AI tokens.
-
-> **Prerequisite:** Install the **`rtk`** CLI binary for full hook compression:
+> **Prerequisite for RTK:** Install the **`rtk`** CLI binary for full hook compression:
 > - **Windows (`winget`):**
 >   ```powershell
 >   winget install --id rtk-ai.rtk -e
@@ -138,7 +150,7 @@ antigravity-custom-agents/
 
 ## 🚀 Automated Installation — Modular (Core + Add-ons)
 
-The v1.5 installer splits setup into **Core** (mandatory: `agents/`, `skills/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) and **3 Optional Add-ons** with an automatic **OS/Environment Preflight Check**:
+The v2.0 installer splits setup into **Core** (mandatory: `agents/`, `plugins/antigravity-sdlc/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) and **3 Optional Add-ons** with an automatic **OS/Environment Preflight Check**:
 - **Add-on A (Security Scanners):** `gitleaks` & `trivy` (via `winget` on Windows; `semgrep` is automatically skipped on Windows due to lack of native support, and offered on Linux/macOS).
 - **Add-on B (Central Memory MCP / Qdrant — 3 Modes):** Copies `mcp/` & `memory/`, checks Python 3 first, offers `.venv` + `requirements.txt` setup, and lets you choose from 3 Qdrant modes:
   - **`Local` (Embedded — Default):** Zero-setup, no VPS/Docker/service required; stores vectors in `~/.gemini/memory/qdrant_local` via `QDRANT_LOCAL_PATH` (automatically skips Add-on C).
@@ -228,7 +240,7 @@ For RAM-constrained VPS without Docker:
 
 If you prefer copying files manually:
 1. **Copy all agents (`agents/*.md`)** to both `~/.gemini/config/agents/` and `~/.gemini/antigravity/agents/` (symlink allowed).
-2. **Copy all skills (`skills/*`)** to `~/.gemini/config/skills/`.
+2. **Copy `antigravity-sdlc` plugin (`plugins/antigravity-sdlc/`)** to `~/.gemini/config/plugins/antigravity-sdlc/` and replace `__HOOK_SCRIPT_PATH__` in its `hooks.json` with the absolute path to `hooks/sdlc-guardrails.mjs` (set `"enabled": false` if `node` is not installed).
 3. **Copy RTK plugin (`plugins/rtk/`)** to `~/.gemini/config/plugins/rtk/`.
 4. **Copy `scripts/verify-gate.ps1`** to `~/.gemini/scripts/verify-gate.ps1`.
 5. **Copy or merge `GEMINI.md`** to `~/.gemini/GEMINI.md`.

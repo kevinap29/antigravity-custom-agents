@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Modular Installer Antigravity Custom Agents, Skills, Deterministic Gate, dan Add-ons (Unix/macOS).
+# Modular Installer Antigravity Custom Agents, SDLC Plugin, Deterministic Gate, dan Add-ons (Unix/macOS).
 # Mendukung Linux dan macOS secara idempoten.
 
 GEMINI_MD_MODE="prompt"
@@ -69,14 +69,14 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_AGENTS="${SCRIPT_DIR}/agents"
-SOURCE_SKILLS="${SCRIPT_DIR}/skills"
+SOURCE_PLUGINS_SDLC="${SCRIPT_DIR}/plugins/antigravity-sdlc"
 SOURCE_PLUGINS_RTK="${SCRIPT_DIR}/plugins/rtk"
 SOURCE_VERIFY_GATE="${SCRIPT_DIR}/scripts/verify-gate.ps1"
 SOURCE_MCP="${SCRIPT_DIR}/mcp"
 SOURCE_MEMORY="${SCRIPT_DIR}/memory"
 SOURCE_GEMINI_MD="${SCRIPT_DIR}/GEMINI.md"
 
-if [[ ! -d "${SOURCE_AGENTS}" || ! -d "${SOURCE_SKILLS}" || ! -d "${SOURCE_PLUGINS_RTK}" || ! -f "${SOURCE_VERIFY_GATE}" || ! -f "${SOURCE_GEMINI_MD}" ]]; then
+if [[ ! -d "${SOURCE_AGENTS}" || ! -d "${SOURCE_PLUGINS_SDLC}" || ! -d "${SOURCE_PLUGINS_RTK}" || ! -f "${SOURCE_VERIFY_GATE}" || ! -f "${SOURCE_GEMINI_MD}" ]]; then
   echo "[ERROR] Struktur folder Core bundle tidak lengkap di ${SCRIPT_DIR}." >&2
   exit 1
 fi
@@ -85,6 +85,7 @@ GEMINI_DIR="${HOME}/.gemini"
 TARGET_CONFIG_AGENTS="${GEMINI_DIR}/config/agents"
 TARGET_ANTIGRAVITY_AGENTS="${GEMINI_DIR}/antigravity/agents"
 TARGET_CONFIG_SKILLS="${GEMINI_DIR}/config/skills"
+TARGET_CONFIG_PLUGINS_SDLC="${GEMINI_DIR}/config/plugins/antigravity-sdlc"
 TARGET_CONFIG_PLUGINS_RTK="${GEMINI_DIR}/config/plugins/rtk"
 TARGET_SCRIPTS="${GEMINI_DIR}/scripts"
 TARGET_MCP="${GEMINI_DIR}/mcp"
@@ -133,6 +134,14 @@ else
   echo -e "  ${YELLOW}[MISS] python   : Python 3 tidak ditemukan (opsional untuk Add-on Central Memory)${NC}"
 fi
 
+NODE_BIN=""
+if command -v node >/dev/null 2>&1; then
+  NODE_BIN="$(command -v node)"
+  echo -e "  ${GREEN}[OK]   node     : ${NODE_BIN}${NC}"
+else
+  echo -e "  ${YELLOW}[MISS] node     : Node.js tidak ditemukan (hook antigravity-sdlc-guardrails akan dinonaktifkan)${NC}"
+fi
+
 if command -v ssh >/dev/null 2>&1; then
   echo -e "  ${GREEN}[OK]   ssh      : $(command -v ssh)${NC}"
 else
@@ -152,7 +161,7 @@ echo ""
 # ------------------------------------------------------------
 # CORE INSTALLATION (Selalu Terpasang)
 # ------------------------------------------------------------
-mkdir -p "${TARGET_CONFIG_AGENTS}" "${TARGET_ANTIGRAVITY_AGENTS}" "${TARGET_CONFIG_SKILLS}" "${TARGET_CONFIG_PLUGINS_RTK}" "${TARGET_SCRIPTS}"
+mkdir -p "${TARGET_CONFIG_AGENTS}" "${TARGET_ANTIGRAVITY_AGENTS}" "${TARGET_CONFIG_PLUGINS_SDLC}" "${TARGET_CONFIG_PLUGINS_RTK}" "${TARGET_SCRIPTS}"
 
 SAME_AGENTS_DIR=false
 if [ "${TARGET_CONFIG_AGENTS}" -ef "${TARGET_ANTIGRAVITY_AGENTS}" ]; then
@@ -180,20 +189,46 @@ else
   echo -e "  ${GREEN}[OK] ${agent_count} agent terpasang ke ${TARGET_CONFIG_AGENTS} & ${TARGET_ANTIGRAVITY_AGENTS}.${NC}"
 fi
 
-# 2. Custom Skills
-skill_count=0
+# 2. Plugin antigravity-sdlc (Skills, Engineering Rules & Command Guardrails)
 echo ""
-echo -e "${YELLOW}[CORE 2/5] Menginstal Custom Skills...${NC}"
-shopt -s nullglob
-for skill_dir in "${SOURCE_SKILLS}"/*/; do
-  skill_name="$(basename "${skill_dir}")"
-  rm -rf "${TARGET_CONFIG_SKILLS}/${skill_name}"
-  cp -R "${skill_dir%/}" "${TARGET_CONFIG_SKILLS}/${skill_name}"
-  echo "  - ${skill_name}"
-  skill_count=$((skill_count + 1))
+echo -e "${YELLOW}[CORE 2/5] Menginstal Plugin antigravity-sdlc (Skills, Rules, Guardrails)...${NC}"
+rm -rf "${TARGET_CONFIG_PLUGINS_SDLC}"
+mkdir -p "${TARGET_CONFIG_PLUGINS_SDLC}"
+cp -R "${SOURCE_PLUGINS_SDLC}/." "${TARGET_CONFIG_PLUGINS_SDLC}/"
+
+installed_hook_script="${TARGET_CONFIG_PLUGINS_SDLC}/hooks/sdlc-guardrails.mjs"
+installed_hooks_json="${TARGET_CONFIG_PLUGINS_SDLC}/hooks.json"
+escaped_hook_script="${installed_hook_script//\\/\\\\}"
+escaped_hook_script="${escaped_hook_script//\"/\\\"}"
+
+if [[ -n "${NODE_BIN}" ]]; then
+  hook_enabled="true"
+  echo -e "  ${GREEN}[OK] Hook guardrail aktif (node: ${NODE_BIN}).${NC}"
+else
+  hook_enabled="false"
+  echo -e "  ${YELLOW}[WARN] CLI 'node' tidak ditemukan di PATH; hook 'antigravity-sdlc-guardrails' dinonaktifkan (enabled: false) agar run_command tetap aman.${NC}"
+fi
+
+hooks_tmp="$(mktemp)"
+while IFS= read -r line || [[ -n "${line}" ]]; do
+  if [[ "${line}" == *"__HOOK_SCRIPT_PATH__"* ]]; then
+    line="${line%%__HOOK_SCRIPT_PATH__*}${escaped_hook_script}${line#*__HOOK_SCRIPT_PATH__}"
+  fi
+  if [[ "${hook_enabled}" == "false" ]]; then
+    line="$(printf '%s' "${line}" | sed -E 's/"enabled"[[:space:]]*:[[:space:]]*true/"enabled": false/')"
+  fi
+  printf '%s\n' "${line}"
+done < "${installed_hooks_json}" > "${hooks_tmp}"
+mv "${hooks_tmp}" "${installed_hooks_json}"
+
+for legacy_skill in "dotnet-webforms-patterns" "frontend-mobile-patterns" "portainer-harbor-deploy"; do
+  legacy_skill_path="${TARGET_CONFIG_SKILLS}/${legacy_skill}"
+  if [[ -e "${legacy_skill_path}" || -L "${legacy_skill_path}" ]]; then
+    rm -rf "${legacy_skill_path}"
+    echo "  [~] Migrasi legacy skill dihapus: ${legacy_skill_path}"
+  fi
 done
-shopt -u nullglob
-echo -e "  ${GREEN}[OK] ${skill_count} skill terpasang ke ${TARGET_CONFIG_SKILLS}.${NC}"
+echo -e "  ${GREEN}[OK] Plugin antigravity-sdlc terpasang ke ${TARGET_CONFIG_PLUGINS_SDLC}.${NC}"
 
 # 3. Plugin RTK
 echo ""
@@ -526,7 +561,7 @@ echo -e "${GREEN}============================================================${N
 echo -e "${GREEN}Ringkasan lokasi terpasang:${NC}"
 echo -e "${GREEN}  - Agents (Config)      : ${TARGET_CONFIG_AGENTS}${NC}"
 echo -e "${GREEN}  - Agents (Antigravity) : ${TARGET_ANTIGRAVITY_AGENTS}${NC}"
-echo -e "${GREEN}  - Skills               : ${TARGET_CONFIG_SKILLS}${NC}"
+echo -e "${GREEN}  - Plugin (SDLC)        : ${TARGET_CONFIG_PLUGINS_SDLC}${NC}"
 echo -e "${GREEN}  - Plugin (RTK)         : ${TARGET_CONFIG_PLUGINS_RTK}${NC}"
 echo -e "${GREEN}  - Deterministic Gate   : ${TARGET_SCRIPTS}/verify-gate.ps1${NC}"
 echo -e "${GREEN}  - Global Rules         : ${TARGET_GEMINI_MD}${NC}"

@@ -17,7 +17,7 @@ Frontend & Cross-Platform Mobile Engineer specializing in TypeScript/SvelteKit/T
 
 # Core Workflow
 - **Stack & Version Detection:** Check `package.json`/`svelte.config.*` (SvelteKit: Svelte 5 runes vs Svelte 4) or `*.csproj` (.NET MAUI Hybrid Blazor) and follow Team Lead's target stack and DTO contract.
-- **Mandatory Skill & Docs:** Read `~/.gemini/config/skills/frontend-mobile-patterns/SKILL.md` for SvelteKit/MAUI Blazor lifecycle, accessibility, and Windows build targets. Use `modern-web-guidance` or `svelte`/`context7` MCP for complex DOM/framework APIs.
+- **Mandatory Skill & Docs:** Read `~/.gemini/config/plugins/antigravity-sdlc/skills/frontend-mobile-patterns/SKILL.md` for SvelteKit/MAUI Blazor lifecycle, accessibility, and Windows build targets. Use `modern-web-guidance` or `svelte`/`context7` MCP for complex DOM/framework APIs.
 - **Build & Typecheck:** Run `npm run check` / `npm run build` (SvelteKit) or `dotnet build` (.NET MAUI Hybrid Blazor; use the Windows target framework in sandbox if Android SDK is unavailable) before reporting completion.
 
 # Guardrails

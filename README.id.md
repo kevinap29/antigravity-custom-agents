@@ -1,4 +1,4 @@
-# 🚀 Antigravity Custom Agents, Skills & RTK Plugin
+# 🚀 Antigravity Custom Agents & Modular Plugins
 
 🌐 [English](README.md) | **Bahasa Indonesia**
 
@@ -9,7 +9,7 @@
 [![RTK](https://img.shields.io/badge/RTK-Token%20Optimizer-10B981?style=flat-square)](https://github.com/rtk-ai/rtk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-Koleksi siap pakai berisi **9 Custom Agents**, **3 Custom Skills**, **Plugin RTK (Token Optimizer)**, **Deterministic Quality/Security Gate**, **Central Memory MCP Opsional (Qdrant)**, dan **Global Developer Profile & Guardrails (`GEMINI.md`)** untuk **Antigravity / Gemini CLI**. Dirancang untuk alur kerja SDLC full-stack (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, hingga Docker/Portainer/Harbor VPS).
+Koleksi siap pakai berisi **9 Custom Agents**, **2 Plugin Modular (`antigravity-sdlc` bundle + `rtk` Token Optimizer)**, **Deterministic Quality/Security Gate**, **Central Memory MCP Opsional (Qdrant)**, dan **Personal Developer Profile ramping (`GEMINI.md`)** untuk **Antigravity / Gemini CLI**. Dirancang untuk alur kerja SDLC full-stack (.NET Core/CQRS, Legacy ASP.NET WebForms, SvelteKit, .NET MAUI Hybrid Blazor, SQLite/SQL Server, hingga Docker/Portainer/Harbor VPS).
 
 ---
 
@@ -33,20 +33,23 @@ chmod +x install.sh && ./install.sh
 
 ---
 
-## ✨ Fitur Utama (Upgrade v1.5)
+## ✨ Fitur Utama (Upgrade v2.0 — Modular Plugin Bundle)
 
 - **9 Custom Agents Terstruktur:** Terdiri dari 2 Main Agent (`sdlc-team-lead` & `pr-review-fixer`) dan 7 Subagent spesialis domain.
-- **Arsitektur SDLC v1.5 (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
+- **Plugin Modular `antigravity-sdlc` (`plugins/antigravity-sdlc/`):**
+  - **3 Domain Skills Terbundel (`skills/`):** Pola siap pakai (WebForms, SvelteKit/MAUI, Portainer/Harbor) dikemas rapi di dalam plugin.
+  - **Engineering Rules Auto-Update (`rules/ENGINEERING_RULES.md`):** Aturan statis (DB-first, Git branching, Searchable Dropdown, DRY/KISS, Zero Regression, Doc Sync, PowerShell & RTK) tinggal di plugin sehingga `update` otomatis menyinkronkannya tanpa menyentuh `GEMINI.md` pribadi Anda.
+  - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Hook Node.js zero-dependency yang memblokir `git push` ke `main`/`master`/`develop`, eksekusi langsung CLI DB (`sqlcmd`, `sqlite3`, `psql`, `mysql`), dan migrasi EF Core Code-First (`dotnet ef migrations` / `dotnet ef database update`). Otomatis dinonaktifkan dengan aman jika `node` belum terpasang.
+- **Plugin RTK Independen (`plugins/rtk/`):** Plugin 3rd-party penghemat token (`rtk hook antigravity`) dipisahkan agar bisa diaktifkan/update secara independen.
+- **Arsitektur SDLC v1.5+ (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
   - **4-Lane Complexity Matrix:** `Lane 0 (docs)` langsung oleh Team Lead, `Lane 1 (micro < 30 baris)` skip file plan dengan `Model: flash`, dan `Lane 2/3 (standard/complex)` alur penuh Phase 0–5.
   - **Contract Freeze Gate:** Eksekusi paralel hanya diizinkan setelah kontrak DTO Phase 0 matang & lolos Ambiguity Gate, dengan batas **maksimal 2 subagent paralel**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 tetap opsional (skip untuk backend-only/minor task). Namun jika prototype dibuat (`_prototypes/<feature-slug>.html`), `ui-prototyper` menyamakan CSS/icon/chart package proyek + *Component Mapping Note*, diikuti *Prototype Approval Gate*, konversi 1:1 oleh `frontend-mobile-dev`, dan *Prototype Parity Audit* oleh `qa-code-reviewer`.
   - **Progressive Model Escalation:** Jika `qa-code-reviewer` memberi tag `[CRITICAL][ESCALATE_MODEL]` atau gagal di iterasi ke-2 pada model `flash`, Team Lead otomatis men-spawn subagent baru dengan kelas model lebih tinggi (`flash` → `inherit` → `pro`).
 - **Deterministic Quality & Security Gate (`scripts/verify-gate.ps1`):** Auto-detect `.NET` (`dotnet build`/`test`), `Node/SvelteKit` (`npm run check`/`build`/`test`), `Python` (`pytest`), serta static security scanner (`gitleaks`, `trivy`, dan `semgrep` di Unix/macOS).
 - **Central Memory MCP Opsional (`mcp/central_memory_mcp.py` + Qdrant):** Memori semantik lintas sesi (`BAAI/bge-small-en-v1.5` via `fastembed` lokal CPU + Qdrant 3 mode: Local Embedded / Localhost Server / Remote VPS, proteksi staleness `git_tree_hash`), lengkap dengan auto-reconnecting SSH tunnel opsional untuk jaringan kantor/restricted.
-- **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Otomatis mengecek OS & tool terpasang (mis. otomatis men-skip `semgrep` di Windows), memisahkan **Core** dan **Add-ons** opsional, serta menyimpan profil pilihan user di `~/.gemini/.addons.json` untuk sinkronisasi `update` & `verify`.
-- **3 Domain Skills & Plugin RTK (Token Optimizer):** Panduan pola kode siap pakai (WebForms, SvelteKit/MAUI, Portainer/Harbor) + hook kompresi output terminal RTK.
-- **Token-Efficient English Prompts + Configurable Response Language:** Seluruh `agents/*.md`, `skills/*/SKILL.md`, dan `GEMINI.md` ditulis dalam Bahasa Inggris ringkas (*bullet style*) untuk menghemat ~20–30% token dan menjaga presisi model ringan (`flash`), dengan pilihan bahasa balasan (`-ResponseLanguage` / `--response-language`, default `English`) dan tone ringkas (`Direct, concise, technical; no filler or redundant recaps.`) di `GEMINI.md`.
-- **Global Developer Profile (`GEMINI.md`):** Aturan standar DB-first, DRY, Zero Regression, KISS, dan Doc Sync otomatis di setiap sesi.
+- **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Otomatis mengecek OS & tool terpasang (mis. otomatis skip `semgrep` di Windows, cek `node` untuk guardrails), migrasi otomatis folder lama `config/skills/`, serta menyimpan pilihan Add-on di `~/.gemini/.addons.json` untuk `update` & `verify`.
+- **Token-Efficient English Prompts + Personal Profile Ramping (`GEMINI.md`):** Seluruh `agents/*.md`, `plugins/antigravity-sdlc/skills/*/SKILL.md`, dan `ENGINEERING_RULES.md` ditulis dalam Bahasa Inggris ringkas, sementara `GEMINI.md` tetap ringan (hanya Tech Stack, bahasa balasan `-ResponseLanguage`/`--response-language`, dan Tone pribadi Anda).
 
 ---
 
@@ -64,12 +67,19 @@ antigravity-custom-agents/
 │   ├── devops-git-ops.md       # Subagent: Git, CI/CD, Docker/Portainer/Harbor, VPS
 │   ├── ui-prototyper.md        # Subagent: Prototyping UI HTML + Package Alignment
 │   └── qa-code-reviewer.md     # Subagent: Auditor kualitas kode, build, security & parity
-├── skills/                     # 3 domain skills
-│   ├── dotnet-webforms-patterns/SKILL.md
-│   ├── frontend-mobile-patterns/SKILL.md
-│   └── portainer-harbor-deploy/SKILL.md
-├── plugins/                    # Plugin tambahan Antigravity
-│   └── rtk/
+├── plugins/                    # 2 plugin Antigravity independen
+│   ├── antigravity-sdlc/       # Bundle SDLC modular (skills, rules, PreToolUse guardrails)
+│   │   ├── plugin.json         # Metadata plugin (v2.0.0)
+│   │   ├── hooks.json          # Konfigurasi hook PreToolUse (path di-resolve saat install)
+│   │   ├── hooks/
+│   │   │   └── sdlc-guardrails.mjs # Guardrail Node.js (protected branch, DB CLI, EF migrations)
+│   │   ├── rules/
+│   │   │   └── ENGINEERING_RULES.md # Aturan engineering statis (auto-update)
+│   │   └── skills/             # 3 domain skills terbundel
+│   │       ├── dotnet-webforms-patterns/SKILL.md
+│   │       ├── frontend-mobile-patterns/SKILL.md
+│   │       └── portainer-harbor-deploy/SKILL.md
+│   └── rtk/                    # Plugin RTK token optimizer independen
 │       ├── plugin.json         # Metadata plugin RTK
 │       ├── hooks.json          # PreToolUse hook (rtk hook antigravity)
 │       └── rules/AGENTS.md     # Aturan penggunaan & recovery output RTK
@@ -88,7 +98,7 @@ antigravity-custom-agents/
 │   └── AGENTS.md               # Template instruksi & konvensi proyek
 ├── CHEATSHEET.md / .id.md      # Contoh prompt nyata (English & Bahasa Indonesia)
 ├── mcp_config.example.json     # Contoh konfigurasi MCP (context7, fetch, sqlite, central_memory)
-├── GEMINI.md                   # Global Developer Profile & Coding Guardrails
+├── GEMINI.md                   # Personal Developer Profile ramping (Tech Stack & Bahasa/Tone)
 ├── install.ps1                 # Modular Installer Windows (Core + Add-ons + Env Check)
 ├── install.sh                  # Modular Installer Linux / macOS (Core + Add-ons + Env Check)
 ├── verify.ps1 / verify.sh      # Health-check Core & Add-ons terpasang
@@ -113,17 +123,19 @@ antigravity-custom-agents/
 | `ui-prototyper` | Subagent | Pembuatan prototipe UI/UX interaktif standalone HTML yang selaras dengan CSS framework, icon, dan chart library proyek. |
 | `qa-code-reviewer` | Subagent | Audit kualitas kode, deterministic gate (`verify-gate.ps1`), sinkronisasi kontrak API, Prototype Parity, DRY, Zero Regression, Doc Sync, dan keamanan. |
 
-### Daftar Custom Skills (3 Skill)
+### Daftar Plugin (2 Plugin Modular)
 
-1. **`dotnet-webforms-patterns`**: Pola implementasi & verifikasi statis proyek legacy .NET Framework 4.x / ASP.NET WebForms (`.csproj` non-SDK, sinkronisasi `.designer.cs`, EF6/LINQ/ADO.NET).
-2. **`frontend-mobile-patterns`**: Panduan implementasi SvelteKit (Svelte 4 vs Svelte 5 runes) dan .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, target build).
-3. **`portainer-harbor-deploy`**: SOP & template standar Docker/Portainer Stack hemat RAM di Ubuntu VPS dan workflow GitHub Actions push image ke Harbor private registry.
+1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.0.0):**
+   - **Bundled Skills (`skills/`):**
+     - **`dotnet-webforms-patterns`**: Pola implementasi & verifikasi statis proyek legacy .NET Framework 4.x / ASP.NET WebForms (`.csproj` non-SDK, sinkronisasi `.designer.cs`, EF6/LINQ/ADO.NET).
+     - **`frontend-mobile-patterns`**: Panduan implementasi SvelteKit (Svelte 4 vs Svelte 5 runes) dan .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, target build).
+     - **`portainer-harbor-deploy`**: SOP & template standar Docker/Portainer Stack hemat RAM di Ubuntu VPS dan workflow GitHub Actions push image ke Harbor private registry.
+   - **Engineering Rules (`rules/ENGINEERING_RULES.md`):** Aturan statis (DB-first, Git branching, searchable dropdown, DRY/KISS, Zero Regression, Doc Sync, PowerShell & RTK) yang otomatis di-inject dan di-update tanpa menyentuh `GEMINI.md` pribadi Anda.
+   - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Hook Node.js zero-dependency yang memblokir `git push` ke `main`/`master`/`develop`, eksekusi langsung CLI DB (`sqlcmd`, `sqlite3`, `psql`, `mysql`), dan migrasi EF Core Code-First (`dotnet ef migrations` / `dotnet ef database update`). Membutuhkan `node`; jika tidak ada, installer otomatis menyetel `"enabled": false`.
+2. **`plugins/rtk/` (RTK Token Optimizer — Independen):**
+   - Berisi `plugin.json`, `hooks.json`, dan `rules/AGENTS.md` untuk *transparent command rewriting* (`PreToolUse` hook `rtk hook antigravity` pada `run_command`) guna mengompresi output terminal panjang dan menghemat token AI.
 
-### Plugin Tambahan: RTK (Token Optimizer)
-
-Folder `plugins/rtk/` berisi plugin **RTK** (`plugin.json`, `hooks.json`, dan `rules/AGENTS.md`) yang berfungsi melakukan *transparent command rewriting* (`PreToolUse` hook `rtk hook antigravity` pada `run_command`) untuk mengompresi output terminal yang panjang (seperti log build, `git status`, test output) dan menghemat pemakaian token AI secara signifikan.
-
-> **Penting:** Plugin ini membutuhkan binary CLI **`rtk`** terpasang di sistem Anda agar hook berjalan penuh:
+> **Penting untuk RTK:** Plugin RTK membutuhkan binary CLI **`rtk`** terpasang di sistem Anda agar hook berjalan penuh:
 > - **Windows (`winget`):**
 >   ```powershell
 >   winget install --id rtk-ai.rtk -e
@@ -138,7 +150,7 @@ Folder `plugins/rtk/` berisi plugin **RTK** (`plugin.json`, `hooks.json`, dan `r
 
 ## 🚀 Cara Instalasi Otomatis — Modular (Core + Add-ons)
 
-Installer v1.5 memisahkan instalasi menjadi **Core** (wajib: `agents/`, `skills/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) dan **3 Add-on Opsional** dengan **OS/Environment Preflight Check** otomatis:
+Installer v2.0 memisahkan instalasi menjadi **Core** (wajib: `agents/`, `plugins/antigravity-sdlc/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) dan **3 Add-on Opsional** dengan **OS/Environment Preflight Check** otomatis:
 - **Add-on A (Security Scanners):** `gitleaks` & `trivy` (via `winget` di Windows; `semgrep` otomatis di-skip di Windows karena tidak didukung native, namun tersedia di Linux/macOS).
 - **Add-on B (Central Memory MCP / Qdrant — 3 Mode):** Menyalin `mcp/` & `memory/`, cek Python 3 terlebih dahulu, opsi `.venv` + `requirements.txt`, serta pilihan 3 mode Qdrant:
   - **`Local` (Embedded — Default):** Zero-setup tanpa VPS/Docker/service; menyimpan vector di `~/.gemini/memory/qdrant_local` via env `QDRANT_LOCAL_PATH` (otomatis skip Add-on C).
@@ -231,7 +243,7 @@ Jika Anda ingin menyalin file secara manual tanpa menjalankan skrip installer:
 1. **Salin seluruh file agent (`agents/*.md`)** ke kedua direktori berikut:
    - Windows: `%USERPROFILE%\.gemini\config\agents\` & `%USERPROFILE%\.gemini\antigravity\agents\`
    - Linux / macOS: `~/.gemini/config/agents/` & `~/.gemini/antigravity/agents/` (boleh berupa symlink)
-2. **Salin seluruh folder skill (`skills/*`)** ke `%USERPROFILE%\.gemini\config\skills\` atau `~/.gemini/config/skills/`.
+2. **Salin plugin `antigravity-sdlc` (`plugins/antigravity-sdlc/`)** ke `%USERPROFILE%\.gemini\config\plugins\antigravity-sdlc\` atau `~/.gemini/config/plugins/antigravity-sdlc/`, lalu ganti `__HOOK_SCRIPT_PATH__` di `hooks.json` dengan path absolut ke `hooks/sdlc-guardrails.mjs` (set `"enabled": false` jika `node` tidak terpasang).
 3. **Salin folder plugin RTK (`plugins/rtk/`)** ke `%USERPROFILE%\.gemini\config\plugins\rtk\` atau `~/.gemini/config/plugins/rtk/`.
 4. **Salin `scripts/verify-gate.ps1`** ke `~/.gemini/scripts/verify-gate.ps1`.
 5. **Salin atau gabungkan `GEMINI.md`** ke `~/.gemini/GEMINI.md`.

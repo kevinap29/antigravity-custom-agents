@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
-    Modular Installer Antigravity Custom Agents, Skills, Deterministic Gate, dan Add-ons (Windows).
+    Modular Installer Antigravity Custom Agents, SDLC Plugin, Deterministic Gate, dan Add-ons (Windows).
 .DESCRIPTION
-    Menjalankan OS/Env Preflight Check, memasang Core bundle (9 agents, 3 skills, RTK plugin,
-    scripts/verify-gate.ps1, GEMINI.md), serta mendukung 3 modular add-on opsional:
+    Menjalankan OS/Env Preflight Check, memasang Core bundle (9 agents, plugin antigravity-sdlc
+    [3 skills, engineering rules, guardrail hook], RTK plugin, scripts/verify-gate.ps1, GEMINI.md),
+    serta mendukung 3 modular add-on opsional:
     Add-on A (Security Scanners: gitleaks & trivy), Add-on B (Central Memory MCP / Qdrant
     dengan mode Local, Localhost, atau Remote), dan Add-on C (Qdrant SSH Tunnel untuk Windows).
     Menyimpan profil add-on aktif ke ~/.gemini/.addons.json.
@@ -51,7 +52,7 @@ if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
 }
 
 $sourceAgents = Join-Path $scriptRoot "agents"
-$sourceSkills = Join-Path $scriptRoot "skills"
+$sourcePluginsSdlc = Join-Path $scriptRoot "plugins\antigravity-sdlc"
 $sourcePluginsRtk = Join-Path $scriptRoot "plugins\rtk"
 $sourceScripts = Join-Path $scriptRoot "scripts"
 $sourceVerifyGate = Join-Path $sourceScripts "verify-gate.ps1"
@@ -61,7 +62,7 @@ $sourceMcp = Join-Path $scriptRoot "mcp"
 $sourceMemory = Join-Path $scriptRoot "memory"
 $sourceGeminiMd = Join-Path $scriptRoot "GEMINI.md"
 
-foreach ($requiredPath in @($sourceAgents, $sourceSkills, $sourcePluginsRtk, $sourceVerifyGate, $sourceGeminiMd)) {
+foreach ($requiredPath in @($sourceAgents, $sourcePluginsSdlc, $sourcePluginsRtk, $sourceVerifyGate, $sourceGeminiMd)) {
     if (-not (Test-Path $requiredPath)) {
         throw "Aset Core bundle tidak ditemukan di: $requiredPath"
     }
@@ -92,6 +93,7 @@ function Find-Python3Command {
 $geminiDir = Join-Path $HOME ".gemini"
 $targetConfigAgents = Join-Path $geminiDir "config\agents"
 $targetConfigSkills = Join-Path $geminiDir "config\skills"
+$targetConfigPluginsSdlc = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
 $targetConfigPluginsRtk = Join-Path $geminiDir "config\plugins\rtk"
 $targetAntigravityAgents = Join-Path $geminiDir "antigravity\agents"
 $targetScripts = Join-Path $geminiDir "scripts"
@@ -114,6 +116,7 @@ $osDesc = [System.Environment]::OSVersion.VersionString
 Write-Host "  - OS       : Windows ($osDesc)" -ForegroundColor Gray
 
 $pythonInfo = Find-Python3Command
+$nodeCmd = Get-Command node -ErrorAction SilentlyContinue
 $sshCmd = Get-Command ssh -ErrorAction SilentlyContinue
 $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
 $gitleaksCmd = Get-Command gitleaks -ErrorAction SilentlyContinue
@@ -123,6 +126,12 @@ if ($null -ne $pythonInfo) {
     Write-Host "  [OK]   python   : $($pythonInfo.Version) ($($pythonInfo.Command))" -ForegroundColor Green
 } else {
     Write-Host "  [MISS] python   : Python 3 tidak ditemukan (diperlukan hanya untuk Add-on Central Memory)" -ForegroundColor Yellow
+}
+
+if ($null -ne $nodeCmd) {
+    Write-Host "  [OK]   node     : $($nodeCmd.Source)" -ForegroundColor Green
+} else {
+    Write-Host "  [MISS] node     : Node.js tidak ditemukan (hook antigravity-sdlc-guardrails akan dinonaktifkan)" -ForegroundColor Yellow
 }
 
 if ($null -ne $sshCmd) {
@@ -154,7 +163,7 @@ Write-Host "  [SKIP] semgrep  : semgrep tidak didukung native di Windows" -Foreg
 # ------------------------------------------------------------
 # CORE INSTALLATION (Selalu Terpasang)
 # ------------------------------------------------------------
-$dirsToCreate = @($targetConfigAgents, $targetConfigSkills, $targetConfigPluginsRtk, $targetAntigravityAgents, $targetScripts)
+$dirsToCreate = @($targetConfigAgents, $targetConfigPluginsSdlc, $targetConfigPluginsRtk, $targetAntigravityAgents, $targetScripts)
 foreach ($dir in $dirsToCreate) {
     if (-not (Test-Path $dir)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -242,18 +251,36 @@ if ($sameAgentsDir) {
     }
 }
 
-# 2. Custom Skills
-$skillDirs = Get-ChildItem -Path $sourceSkills -Directory
-Write-Host "`n[CORE 2/5] Menginstal Custom Skills ($($skillDirs.Count) skill)..." -ForegroundColor Yellow
-foreach ($skill in $skillDirs) {
-    $destSkillPath = Join-Path $targetConfigSkills $skill.Name
-    if (Test-Path $destSkillPath) {
-        Remove-Item -Path $destSkillPath -Recurse -Force
-    }
-    Copy-Item -Path $skill.FullName -Destination $destSkillPath -Recurse -Force
-    Write-Host "  - $($skill.Name)" -ForegroundColor Gray
+# 2. Plugin antigravity-sdlc (Skills, Engineering Rules & Command Guardrails)
+Write-Host "`n[CORE 2/5] Menginstal Plugin antigravity-sdlc (Skills, Rules, Guardrails)..." -ForegroundColor Yellow
+if (Test-Path -LiteralPath $targetConfigPluginsSdlc) {
+    Remove-Item -LiteralPath $targetConfigPluginsSdlc -Recurse -Force
 }
-Write-Host "  [OK] Semua skill berhasil disalin ke $targetConfigSkills." -ForegroundColor Green
+New-Item -ItemType Directory -Path $targetConfigPluginsSdlc -Force | Out-Null
+Copy-Item -Path "$sourcePluginsSdlc\*" -Destination $targetConfigPluginsSdlc -Recurse -Force
+
+$installedHookScriptPath = (Join-Path $targetConfigPluginsSdlc "hooks\sdlc-guardrails.mjs") -replace '\\', '/'
+$installedHooksJsonPath = Join-Path $targetConfigPluginsSdlc "hooks.json"
+$hooksRaw = Get-Content -LiteralPath $installedHooksJsonPath -Raw -Encoding UTF8
+$hooksRaw = $hooksRaw.Replace("__HOOK_SCRIPT_PATH__", $installedHookScriptPath)
+if ($null -eq $nodeCmd) {
+    $hooksRaw = $hooksRaw -replace '"enabled"\s*:\s*true', '"enabled": false'
+    Write-Host "  [WARN] CLI 'node' tidak ditemukan di PATH; hook 'antigravity-sdlc-guardrails' dinonaktifkan (`"enabled`": false) agar run_command tetap aman." -ForegroundColor Yellow
+} else {
+    Write-Host "  [OK] Hook guardrail aktif (node: $($nodeCmd.Source))." -ForegroundColor Green
+}
+$null = $hooksRaw | ConvertFrom-Json
+[System.IO.File]::WriteAllText($installedHooksJsonPath, $hooksRaw, (New-Object System.Text.UTF8Encoding $false))
+
+$legacyBundleSkills = @("dotnet-webforms-patterns", "frontend-mobile-patterns", "portainer-harbor-deploy")
+foreach ($legacySkill in $legacyBundleSkills) {
+    $legacySkillPath = Join-Path $targetConfigSkills $legacySkill
+    if (Test-Path -LiteralPath $legacySkillPath) {
+        Remove-Item -LiteralPath $legacySkillPath -Recurse -Force
+        Write-Host "  [~] Migrasi legacy skill dihapus: $legacySkillPath" -ForegroundColor DarkCyan
+    }
+}
+Write-Host "  [OK] Plugin antigravity-sdlc berhasil dipasang ke $targetConfigPluginsSdlc." -ForegroundColor Green
 
 # 3. Plugin RTK
 Write-Host "`n[CORE 3/5] Menginstal Plugin RTK (Token Optimizer)..." -ForegroundColor Yellow
@@ -585,7 +612,40 @@ if ($enableMemory -and ($resolvedQdrantMode -in @("local", "localhost"))) {
             Copy-Item -LiteralPath $sourceTunnelPs1 -Destination (Join-Path $targetScripts "qdrant-tunnel.ps1") -Force
             Copy-Item -LiteralPath $sourceTunnelVbs -Destination (Join-Path $targetScripts "qdrant-tunnel-hidden.vbs") -Force
             Write-Host "  [OK] Tunnel scripts disalin ke $targetScripts." -ForegroundColor Green
-            Write-Host "  [INFO] Set env var QDRANT_SSH_HOST (<SSH_USER>@<VPS_IP>) & QDRANT_SSH_PORT (default 22) sebelum menjalankan tunnel." -ForegroundColor Cyan
+
+            $existingSshHost = [Environment]::GetEnvironmentVariable("QDRANT_SSH_HOST", "User")
+            if ([string]::IsNullOrWhiteSpace($existingSshHost)) {
+                $existingSshHost = $env:QDRANT_SSH_HOST
+            }
+            $existingSshPort = [Environment]::GetEnvironmentVariable("QDRANT_SSH_PORT", "User")
+            if ([string]::IsNullOrWhiteSpace($existingSshPort)) {
+                $existingSshPort = $env:QDRANT_SSH_PORT
+            }
+            if ([string]::IsNullOrWhiteSpace($existingSshPort)) {
+                $existingSshPort = "22"
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($existingSshHost) -and ($existingSshHost -notmatch '<SSH_USER>|<VPS_IP>')) {
+                Write-Host "  [OK] Env var QDRANT_SSH_HOST sudah terpasang ($existingSshHost, port $existingSshPort)." -ForegroundColor Green
+            } elseif ($isInteractive) {
+                $inputSshHost = Read-Host "  Masukkan QDRANT_SSH_HOST (format user@vps-ip, Enter untuk lewati)"
+                if (-not [string]::IsNullOrWhiteSpace($inputSshHost)) {
+                    $cleanSshHost = $inputSshHost.Trim()
+                    [Environment]::SetEnvironmentVariable("QDRANT_SSH_HOST", $cleanSshHost, "User")
+                    $env:QDRANT_SSH_HOST = $cleanSshHost
+
+                    $inputSshPort = Read-Host "  Masukkan QDRANT_SSH_PORT (default 22)"
+                    $cleanSshPort = if ([string]::IsNullOrWhiteSpace($inputSshPort)) { "22" } else { $inputSshPort.Trim() }
+                    [Environment]::SetEnvironmentVariable("QDRANT_SSH_PORT", $cleanSshPort, "User")
+                    $env:QDRANT_SSH_PORT = $cleanSshPort
+
+                    Write-Host "  [OK] Env var QDRANT_SSH_HOST ($cleanSshHost) dan QDRANT_SSH_PORT ($cleanSshPort) disimpan ke Windows User Env." -ForegroundColor Green
+                } else {
+                    Write-Host "  [INFO] Set env var QDRANT_SSH_HOST (<SSH_USER>@<VPS_IP>) & QDRANT_SSH_PORT (default 22) sebelum menjalankan tunnel." -ForegroundColor Cyan
+                }
+            } else {
+                Write-Host "  [WARN] Env var QDRANT_SSH_HOST belum diset di Windows User Env. Set sebelum menjalankan tunnel." -ForegroundColor Yellow
+            }
         } else {
             Write-Host "  [WARN] File sumber tunnel script tidak ditemukan. Melewati Add-on C." -ForegroundColor Yellow
             $enableTunnel = $false
@@ -612,7 +672,7 @@ Write-Host "============================================================" -Foreg
 Write-Host "Ringkasan lokasi terpasang:" -ForegroundColor Green
 Write-Host "  - Agents (Config)      : $targetConfigAgents" -ForegroundColor Green
 Write-Host "  - Agents (Antigravity) : $targetAntigravityAgents" -ForegroundColor Green
-Write-Host "  - Skills               : $targetConfigSkills" -ForegroundColor Green
+Write-Host "  - Plugin (SDLC)        : $targetConfigPluginsSdlc" -ForegroundColor Green
 Write-Host "  - Plugin (RTK)         : $targetConfigPluginsRtk" -ForegroundColor Green
 Write-Host "  - Deterministic Gate   : $targetScripts\verify-gate.ps1" -ForegroundColor Green
 Write-Host "  - Global Rules         : $targetGeminiMd" -ForegroundColor Green

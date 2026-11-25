@@ -1,0 +1,17 @@
+{
+  "antigravity-sdlc-guardrails": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__HOOK_SCRIPT_PATH__\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
