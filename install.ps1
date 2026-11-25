@@ -171,6 +171,25 @@ try {
 }
 
 # 1. Custom Agents
+function Resolve-DirectoryLinkTarget {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return $null }
+    if ($item.LinkType -and $item.Target) {
+        $rawTarget = @($item.Target)[0]
+        if (-not [System.IO.Path]::IsPathRooted($rawTarget)) {
+            $parent = Split-Path -Path $Path -Parent
+            $rawTarget = Join-Path $parent $rawTarget
+        }
+        return [System.IO.Path]::GetFullPath($rawTarget).TrimEnd('\', '/')
+    }
+    return [System.IO.Path]::GetFullPath($item.FullName).TrimEnd('\', '/')
+}
+
+$resolvedConfigAgents = Resolve-DirectoryLinkTarget -Path $targetConfigAgents
+$resolvedAntigravityAgents = Resolve-DirectoryLinkTarget -Path $targetAntigravityAgents
+$sameAgentsDir = ($null -ne $resolvedConfigAgents) -and ($null -ne $resolvedAntigravityAgents) -and ($resolvedConfigAgents -ieq $resolvedAntigravityAgents)
+
 $agentFiles = Get-ChildItem -Path $sourceAgents -Filter "*.md" -File
 $linkedCount = 0
 $copiedCount = 0
@@ -186,35 +205,41 @@ foreach ($agent in $agentFiles) {
     }
     Copy-Item -LiteralPath $agent.FullName -Destination $destConfigPath -Force
 
-    $existingAntigravityItem = Get-Item -LiteralPath $destAntigravityPath -Force -ErrorAction SilentlyContinue
-    if ($null -ne $existingAntigravityItem) {
-        Remove-Item -LiteralPath $destAntigravityPath -Force
-    }
-
-    $symlinkCreated = $false
-    if ($isElevated) {
-        try {
-            New-Item -ItemType SymbolicLink -Path $destAntigravityPath -Target $destConfigPath -ErrorAction Stop | Out-Null
-            $symlinkCreated = $true
-            $linkedCount++
-        } catch {
-            $symlinkCreated = $false
+    if (-not $sameAgentsDir) {
+        $existingAntigravityItem = Get-Item -LiteralPath $destAntigravityPath -Force -ErrorAction SilentlyContinue
+        if ($null -ne $existingAntigravityItem) {
+            Remove-Item -LiteralPath $destAntigravityPath -Force
         }
-    }
 
-    if (-not $symlinkCreated) {
-        Copy-Item -Path $destConfigPath -Destination $destAntigravityPath -Force
-        $copiedCount++
+        $symlinkCreated = $false
+        if ($isElevated) {
+            try {
+                New-Item -ItemType SymbolicLink -Path $destAntigravityPath -Target $destConfigPath -ErrorAction Stop | Out-Null
+                $symlinkCreated = $true
+                $linkedCount++
+            } catch {
+                $symlinkCreated = $false
+            }
+        }
+
+        if (-not $symlinkCreated) {
+            Copy-Item -Path $destConfigPath -Destination $destAntigravityPath -Force
+            $copiedCount++
+        }
     }
 
     Write-Host "  - $($agent.Name)" -ForegroundColor Gray
 }
 
-if ($linkedCount -gt 0) {
-    Write-Host "  [OK] $linkedCount agent ditautkan via SymbolicLink ke antigravity\agents." -ForegroundColor Green
-}
-if ($copiedCount -gt 0) {
-    Write-Host "  [OK] $copiedCount agent disalin langsung ke antigravity\agents." -ForegroundColor Green
+if ($sameAgentsDir) {
+    Write-Host "  [OK] $($agentFiles.Count) agent terpasang ke config\agents (antigravity\agents sudah terhubung via directory link)." -ForegroundColor Green
+} else {
+    if ($linkedCount -gt 0) {
+        Write-Host "  [OK] $linkedCount agent ditautkan via SymbolicLink ke antigravity\agents." -ForegroundColor Green
+    }
+    if ($copiedCount -gt 0) {
+        Write-Host "  [OK] $copiedCount agent disalin langsung ke antigravity\agents." -ForegroundColor Green
+    }
 }
 
 # 2. Custom Skills

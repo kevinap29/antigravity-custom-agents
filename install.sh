@@ -154,6 +154,11 @@ echo ""
 # ------------------------------------------------------------
 mkdir -p "${TARGET_CONFIG_AGENTS}" "${TARGET_ANTIGRAVITY_AGENTS}" "${TARGET_CONFIG_SKILLS}" "${TARGET_CONFIG_PLUGINS_RTK}" "${TARGET_SCRIPTS}"
 
+SAME_AGENTS_DIR=false
+if [ "${TARGET_CONFIG_AGENTS}" -ef "${TARGET_ANTIGRAVITY_AGENTS}" ]; then
+  SAME_AGENTS_DIR=true
+fi
+
 # 1. Custom Agents
 agent_count=0
 echo -e "${YELLOW}[CORE 1/5] Menginstal Custom Agents...${NC}"
@@ -161,13 +166,19 @@ shopt -s nullglob
 for agent_file in "${SOURCE_AGENTS}"/*.md; do
   filename="$(basename "${agent_file}")"
   cp -f "${agent_file}" "${TARGET_CONFIG_AGENTS}/${filename}"
-  ln -sfn "${TARGET_CONFIG_AGENTS}/${filename}" "${TARGET_ANTIGRAVITY_AGENTS}/${filename}" || \
-    cp -f "${TARGET_CONFIG_AGENTS}/${filename}" "${TARGET_ANTIGRAVITY_AGENTS}/${filename}"
+  if [ "${SAME_AGENTS_DIR}" = false ]; then
+    ln -sfn "${TARGET_CONFIG_AGENTS}/${filename}" "${TARGET_ANTIGRAVITY_AGENTS}/${filename}" || \
+      cp -f "${TARGET_CONFIG_AGENTS}/${filename}" "${TARGET_ANTIGRAVITY_AGENTS}/${filename}"
+  fi
   echo "  - ${filename}"
   agent_count=$((agent_count + 1))
 done
 shopt -u nullglob
-echo -e "  ${GREEN}[OK] ${agent_count} agent terpasang ke ${TARGET_CONFIG_AGENTS} & ${TARGET_ANTIGRAVITY_AGENTS}.${NC}"
+if [ "${SAME_AGENTS_DIR}" = true ]; then
+  echo -e "  ${GREEN}[OK] ${agent_count} agent terpasang ke ${TARGET_CONFIG_AGENTS} (antigravity/agents sudah terhubung via directory link).${NC}"
+else
+  echo -e "  ${GREEN}[OK] ${agent_count} agent terpasang ke ${TARGET_CONFIG_AGENTS} & ${TARGET_ANTIGRAVITY_AGENTS}.${NC}"
+fi
 
 # 2. Custom Skills
 skill_count=0
