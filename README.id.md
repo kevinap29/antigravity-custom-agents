@@ -1,3 +1,5 @@
+![Verify Repository](https://github.com/kevinap29/antigravity-custom-agents/actions/workflows/verify.yml/badge.svg)
+
 # 🚀 Antigravity Custom Agents & Modular Plugins
 
 🌐 [English](README.md) | **Bahasa Indonesia**
