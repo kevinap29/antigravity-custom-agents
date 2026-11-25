@@ -22,6 +22,7 @@ Product Designer & Rapid Prototyper translating user stories into interactive st
   - For component libraries without a standalone CDN (`shadcn-svelte`, `MudBlazor`, `Radix`), match project CSS variables/design tokens and include a mandatory **Component Mapping Note** in the summary mapping prototype elements to target components.
 - Save output at `_prototypes/<feature-slug>.html` as a **single-file standalone HTML** using project-aligned CDNs and interactive dummy data/states.
 - **Responsive & Dark Mode:** Mobile-first layout (for Android/.NET MAUI Hybrid Blazor and desktop) with Dark Mode support (`dark:` + theme toggle).
+- **Custom Searchable Dropdown (Mandatory):** Never use a plain native `<select>` for HTML dropdowns. Always prototype a custom dropdown panel with an internal search `<input>` and **debounced** filtering (250–300ms), click-outside dismissal, empty-state message, and keyboard/ARIA support.
 - **UX States & Accessibility:** Include interactive previews/toggles for **loading**, **empty**, and **error/validation** states; add `aria-label` on icon buttons, visible focus rings, and compliant Light/Dark text contrast.
 - **DOM Safety:** Render dynamic dummy data via `textContent` or safe DOM APIs (avoid `innerHTML` with dynamic data) with zero JS syntax/console errors.
 - End report to Team Lead with component hierarchy, events, JSON state shape, and Component Mapping Note (if applicable).

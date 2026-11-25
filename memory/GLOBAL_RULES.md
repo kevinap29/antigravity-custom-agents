@@ -1,6 +1,8 @@
 # Global Engineering Rules
-- Never push directly to `main`, `master`, or `develop`; always work on feature branches and open a PR.
-- DB-First mandatory: never use EF Core Code-First migrations; use LINQ/EF if already present in the project (no raw SQL template strings).
-- Write targeted unit tests for every behavioral change; never weaken assertions to pass tests.
-- Prefer explicit typing, structured logging, parameterized queries, and atomic DB mutations; zero hardcoded secrets.
-- Check existing helpers/validators (DRY) and keep changes strictly scoped (KISS & Zero Regression).
+- **Git Branching:** Never push directly to `main`, `master`, or `develop`; always work on feature branches and open a PR.
+- **DB-First Mandatory:** Never use EF Core Code-First migrations; no direct SQL execution by agents (`sqlite3`, `sqlcmd`, etc.); use LINQ/EF if already present in the project (no raw SQL template strings).
+- **UI Dropdown Component:** Whenever implementing an HTML dropdown element, ALWAYS build a **custom searchable dropdown component** with a built-in search input inside the dropdown panel and **debounced** filtering/querying (e.g., 250–300ms) instead of a plain native `<select>`.
+- **Testing & Safety:** Write targeted unit tests for every behavioral change; never weaken assertions to pass tests. Prefer explicit typing, structured logging, parameterized queries, atomic DB mutations (transactions / affected-row checks), proper `IDisposable` cleanup, and zero hardcoded secrets.
+- **DRY, KISS & Zero Regression:** Check existing helpers/validators before adding new ones; keep changes strictly scoped and preserve existing contracts.
+- **Token Efficiency & Doc Sync:** Read only task-relevant files (avoid full-repo scans unless necessary); update or prune stale docs/comments when adding, changing, or deleting features.
+- **PowerShell & RTK:** In Windows PowerShell, use `;` (not `&&`) to chain commands. If `curl` payloads or compile errors are condensed by RTK, use `rtk recall <hash>`, `rtk bypass <cmd>`, or `Invoke-RestMethod`.

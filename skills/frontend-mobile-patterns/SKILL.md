@@ -20,6 +20,7 @@ description: Implementation patterns for SvelteKit (Svelte 4 vs 5, routing, SSR/
 - **Docs:** Use `context7` MCP (`resolve-library-id` & `query-docs`) for official `.NET MAUI` / `Blazor` references when available.
 
 ## 3. UI Standards, Contracts & Cleanliness
+- **Custom Searchable Dropdown (Mandatory):** Never use a plain native `<select>` for HTML dropdowns. Always build/reuse a custom dropdown component with a built-in search `<input>` inside the dropdown panel, **debounced** filtering/querying (250–300ms, properly disposed on unmount/`IDisposable`), click-outside close, Escape/keyboard navigation, empty state, and ARIA attributes.
 - **UX States & Accessibility:** Handle **loading**, **empty**, and **error** states, prevent double-submit during async actions, add `aria-label` on icon buttons, label forms, and maintain Light/Dark Mode contrast.
 - **DTO Contract Sync:** Match property names, JSON casing, data types, and nullability 100% with the backend.
 - **No Hardcoding:** Centralize constants per project convention (`constants.ts` in SvelteKit or existing constant class/`[Name]Constant.cs` in Blazor).

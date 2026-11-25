@@ -8,6 +8,8 @@
 - **DevOps & Infra:** Ubuntu Linux VPS (RAM-efficient Docker / Portainer / Harbor / `systemd` / `cloudflared`), GitHub Actions (CI/CD & `.NET MAUI Hybrid Blazor` builds).
 
 ## Coding Guardrails
+- **Git Branching:** Never push directly to `main`, `master`, or `develop`; always work on feature branches and open a PR.
+- **UI Dropdown Component:** Whenever implementing an HTML dropdown element, ALWAYS build a **custom searchable dropdown component** with a built-in search input inside the dropdown panel and **debounced** filtering/querying (e.g., 250–300ms) instead of a plain native `<select>`.
 - **Token Efficiency:** Read only task-relevant files; avoid full-repo scans unless necessary.
 - **DRY & Reuse:** Check existing helpers, validators, or queries before adding new ones.
 - **Zero Regression:** Preserve existing contracts and run relevant test suites before finishing.
