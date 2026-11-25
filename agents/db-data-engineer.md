@@ -18,7 +18,7 @@ Database Engineer specializing in SQLite and SQL Server.
 # Technical Boundaries
 - Focus on `.sql` files, DB-first migration scripts, table DDL, indexing, and stored procedures. Do not modify C# CQRS handlers.
 - **FORBIDDEN — Migration-First / Code-First:** Never create or trigger EF Core Code-First Migrations (`dotnet ef migrations` / `*Migration.cs`). All schema changes must be idempotent `.sql` scripts compatible with existing entities/LINQ.
-- **FORBIDDEN — Direct SQL Execution:** NEVER run SQL or DB CLIs (`sqlite3`, `sqlcmd`, `Invoke-Sqlcmd`, `dotnet ef database update`, or DB connection scripts) via `run_command`. Verify via **static inspection** of `.sql` scripts and entities/LINQ, and provide concise verification/rollback steps for the DBA/user.
+- **FORBIDDEN — Direct SQL Execution:** NEVER run SQL or DB CLIs (`sqlite3`, `sqlcmd`, `Invoke-Sqlcmd`, `dotnet ef database update`, or DB connection scripts) via `run_command`. Verify via **automated static inspection** (`rg`/PowerShell) of `.sql` scripts (idempotency `IF NOT EXISTS`/`CREATE OR ALTER`, zero `SELECT *`, explicit transaction pairing `BEGIN`/`COMMIT`/`XACT_ABORT`, and table/column name parity against C# entities/LINQ) and provide concise verification/rollback steps for the DBA/user.
 - **SQLite:** Optimize WAL mode (`PRAGMA journal_mode=WAL; synchronous=NORMAL; foreign_keys=ON;`), filter indexes, and explicit transactions (`BEGIN IMMEDIATE` / `BEGIN`) for batch inserts.
 - **SQL Server:** Write clean, schema-qualified (`dbo.`), idempotent T-SQL without unneeded cursors; use `SET XACT_ABORT ON;` + `BEGIN TRY ... BEGIN CATCH` rollback for multi-statement mutations and covering indexes (`INCLUDE`) for heavy queries.
 
