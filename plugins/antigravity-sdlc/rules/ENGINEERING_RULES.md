@@ -8,4 +8,5 @@
 - **Zero Regression:** Preserve existing contracts and run relevant test suites before finishing.
 - **KISS & Atomic:** Write the simplest valid solution; ensure atomic DB mutations (transactions / affected-row checks) and proper `IDisposable` cleanup.
 - **Doc Sync & Pruning:** Update or remove stale docs/comments when adding, changing, or deleting features.
+- **AGENTS.md Hygiene:** Keep repo `AGENTS.md` <= 4 KB (~1,000 tokens); during Phase 0, if bloated (`> 4.5 KB`, ASCII diagrams, or global-rule duplicates), include auto-splitting details into `docs/` with 1-line pointers in the plan and execute once approved.
 - **PowerShell & RTK:** In Windows PowerShell, use `;` (not `&&`) to chain commands. If `curl` payloads or compile errors are condensed by RTK, use `rtk recall <hash>`, `rtk bypass <cmd>`, or `Invoke-RestMethod`.
