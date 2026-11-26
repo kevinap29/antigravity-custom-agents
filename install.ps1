@@ -87,6 +87,7 @@ function Find-Python3Command {
             }
         }
     }
+    $global:LASTEXITCODE = 0
     return $null
 }
 
@@ -686,3 +687,4 @@ if ($enableTunnel) {
 Write-Host "`nLangkah berikutnya:" -ForegroundColor Cyan
 Write-Host "  1. Restart / buka ulang Antigravity atau sesi Gemini CLI Anda." -ForegroundColor White
 Write-Host "  2. Cek kesehatan instalasi dengan: powershell -ExecutionPolicy Bypass -File .\verify.ps1" -ForegroundColor White
+exit 0

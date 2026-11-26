@@ -119,11 +119,13 @@ if ($enableMemory) {
 if ($enableTunnel) { $installArgs["WithTunnel"] = $true }
 
 Write-Host "`n[*] Menjalankan installer sinkronisasi (GeminiMdMode=$GeminiMdMode)..." -ForegroundColor Yellow
+$global:LASTEXITCODE = 0
 & $installScript @installArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Proses instalasi/sinkronisasi gagal dengan exit code $LASTEXITCODE."
 }
 
 Write-Host "`n[*] Menjalankan verifikasi kesehatan instalasi..." -ForegroundColor Yellow
+$global:LASTEXITCODE = 0
 & $verifyScript
 exit $LASTEXITCODE
