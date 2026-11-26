@@ -53,3 +53,8 @@ Thumbs.db
 *.db-wal
 *.sqlite-shm
 *.sqlite-wal
+
+# Graphify Raw Graph Artifacts (keep graphify-out/GRAPH_REPORT.md readable)
+graphify-out/graph.json
+graphify-out/*.html
+graphify-out/cache/
