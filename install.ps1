@@ -3,7 +3,7 @@
     Modular Installer Antigravity Custom Agents, SDLC Plugin, Deterministic Gate, dan Add-ons (Windows).
 .DESCRIPTION
     Menjalankan OS/Env Preflight Check, memasang Core bundle (9 agents, plugin antigravity-sdlc
-    [3 skills, engineering rules, guardrail hook], RTK plugin, scripts/verify-gate.ps1, GEMINI.md),
+    [3 skills, engineering rules, guardrail hook], RTK plugin, plugins/antigravity-sdlc/scripts/verify-gate.ps1, GEMINI.md),
     serta mendukung 3 modular add-on opsional:
     Add-on A (Security Scanners: gitleaks & trivy), Add-on B (Central Memory MCP / Qdrant
     dengan mode Local, Localhost, atau Remote), dan Add-on C (Qdrant SSH Tunnel untuk Windows).
@@ -55,7 +55,7 @@ $sourceAgents = Join-Path $scriptRoot "agents"
 $sourcePluginsSdlc = Join-Path $scriptRoot "plugins\antigravity-sdlc"
 $sourcePluginsRtk = Join-Path $scriptRoot "plugins\rtk"
 $sourceScripts = Join-Path $scriptRoot "scripts"
-$sourceVerifyGate = Join-Path $sourceScripts "verify-gate.ps1"
+$sourceVerifyGate = Join-Path $sourcePluginsSdlc "scripts\verify-gate.ps1"
 $sourceTunnelPs1 = Join-Path $sourceScripts "qdrant-tunnel.ps1"
 $sourceTunnelVbs = Join-Path $sourceScripts "qdrant-tunnel-hidden.vbs"
 $sourceMcp = Join-Path $scriptRoot "mcp"

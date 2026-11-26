@@ -16,3 +16,6 @@ Thumbs.db
 __pycache__/
 logs/
 mcp_config.json
+
+# Local SDLC agent plans & runtime state
+.gemini/

@@ -33,6 +33,7 @@ EXPECTED_SDLC_FILES=(
   "hooks.json"
   "hooks/sdlc-guardrails.mjs"
   "rules/ENGINEERING_RULES.md"
+  "scripts/verify-gate.ps1"
   "skills/dotnet-webforms-patterns/SKILL.md"
   "skills/frontend-mobile-patterns/SKILL.md"
   "skills/portainer-harbor-deploy/SKILL.md"

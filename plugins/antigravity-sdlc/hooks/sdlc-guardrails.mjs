@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 const PROTECTED_BRANCHES = new Set(["main", "master", "develop"]);
-const DIRECT_DB_CLIS = new Set(["sqlcmd", "sqlite3", "psql", "mysql"]);
+const DIRECT_DB_CLIS = new Set([
+  "sqlcmd",
+  "invoke-sqlcmd",
+  "sqlite3",
+  "psql",
+  "mysql",
+  "sqlpackage",
+]);
 const COMMAND_WRAPPERS = new Set(["sudo", "env", "command", "nohup", "time", "rtk"]);
 const SHELL_EXECUTABLES = new Set(["sh", "bash", "zsh", "dash", "pwsh", "powershell", "cmd"]);
 
@@ -22,7 +33,6 @@ const GIT_PUSH_VALUE_FLAGS = new Set([
   "--exec",
   "-o",
   "--push-option",
-  "--signed",
 ]);
 
 const DOTNET_EF_VALUE_FLAGS = new Set([
@@ -65,6 +75,22 @@ function extractCommand(payload) {
     }
   }
   return null;
+}
+
+function extractCwd(payload) {
+  if (!payload || typeof payload !== "object") return undefined;
+  const candidates = [
+    payload.cwd,
+    payload.working_directory,
+    payload.tool_input?.cwd,
+    payload.tool_info?.cwd,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
 }
 
 function splitSegments(commandLine) {
@@ -197,11 +223,23 @@ function tokenizeSegment(segment) {
 function normalizeExeName(raw) {
   const parts = raw.split(/[/\\]/);
   const base = parts[parts.length - 1] || "";
-  return base.toLowerCase().replace(/\.exe$/i, "");
+  return base.toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/i, "");
 }
 
 function stripLeadingPrefixes(tokens) {
   let idx = 0;
+  const envOverrides = {};
+  const recordEnvAssignment = (text) => {
+    const eqIdx = text.indexOf("=");
+    if (eqIdx > 0) {
+      const key = text.slice(0, eqIdx);
+      const val = text.slice(eqIdx + 1);
+      if (key === "GIT_DIR" || key === "GIT_WORK_TREE") {
+        envOverrides[key] = val;
+      }
+    }
+  };
+
   while (idx < tokens.length) {
     const tok = tokens[idx];
     if (!tok.quoted && tok.text === "&") {
@@ -209,6 +247,7 @@ function stripLeadingPrefixes(tokens) {
       continue;
     }
     if (!tok.quoted && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tok.text)) {
+      recordEnvAssignment(tok.text);
       idx++;
       continue;
     }
@@ -220,13 +259,16 @@ function stripLeadingPrefixes(tokens) {
         !tokens[idx].quoted &&
         (tokens[idx].text.startsWith("-") || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[idx].text))
       ) {
+        if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[idx].text)) {
+          recordEnvAssignment(tokens[idx].text);
+        }
         idx++;
       }
       continue;
     }
     break;
   }
-  return tokens.slice(idx);
+  return { tokens: tokens.slice(idx), envOverrides };
 }
 
 function extractTargetBranch(refspec) {
@@ -239,8 +281,52 @@ function extractTargetBranch(refspec) {
   return spec.trim();
 }
 
-function checkGitPush(tokens) {
+function resolveCurrentGitBranch(globalGitArgs, cwd, envOverrides = {}) {
+  try {
+    const env =
+      envOverrides && Object.keys(envOverrides).length > 0
+        ? { ...process.env, ...envOverrides }
+        : process.env;
+    const out = execFileSync("git", [...globalGitArgs, "rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: cwd || process.cwd(),
+      env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 1500,
+    });
+    return out.trim();
+  } catch {
+    return null;
+  }
+}
+
+function extractDirectoryChangeTarget(tokens) {
   let i = 1;
+  while (i < tokens.length) {
+    const t = tokens[i].text;
+    const lower = t.toLowerCase();
+    if (lower === "--") {
+      return tokens[i + 1]?.text || null;
+    }
+    if (lower === "-path" || lower === "-literalpath") {
+      return tokens[i + 1]?.text || null;
+    }
+    if (lower === "/d") {
+      i++;
+      continue;
+    }
+    if (t.startsWith("-") && t !== "-") {
+      i++;
+      continue;
+    }
+    return t;
+  }
+  return null;
+}
+
+function checkGitCommand(tokens, cwd, branchResolver, envOverrides = {}) {
+  let i = 1;
+  const globalGitArgs = [];
   while (i < tokens.length) {
     const t = tokens[i].text;
     if (t === "--") {
@@ -248,7 +334,19 @@ function checkGitPush(tokens) {
       break;
     }
     if (GIT_GLOBAL_VALUE_FLAGS.has(t)) {
+      if (i + 1 < tokens.length && (t === "-C" || t === "--git-dir" || t === "--work-tree")) {
+        globalGitArgs.push(t, tokens[i + 1].text);
+      }
       i += 2;
+      continue;
+    }
+    if (
+      t.startsWith("--git-dir=") ||
+      t.startsWith("--work-tree=") ||
+      (t.startsWith("-C") && t.length > 2)
+    ) {
+      globalGitArgs.push(t);
+      i++;
       continue;
     }
     if (t.startsWith("-")) {
@@ -258,13 +356,60 @@ function checkGitPush(tokens) {
     break;
   }
 
-  if (i >= tokens.length || tokens[i].text.toLowerCase() !== "push") {
+  if (i >= tokens.length) {
+    return null;
+  }
+
+  const subcmd = tokens[i].text.toLowerCase();
+
+  if (subcmd === "reset") {
+    for (let j = i + 1; j < tokens.length; j++) {
+      if (tokens[j].text === "--hard") {
+        return "[SDLC Guardrail] Destructive 'git reset --hard' is blocked. Require explicit user confirmation outside automated agent runs.";
+      }
+    }
+    return null;
+  }
+
+  if (subcmd === "clean") {
+    let hasDryRun = false;
+    let hasForce = false;
+    let hasDir = false;
+    let hasIgnored = false;
+    for (let j = i + 1; j < tokens.length; j++) {
+      const arg = tokens[j].text;
+      if (arg === "--") break;
+      if (arg === "-e" || arg === "--exclude") {
+        j++;
+        continue;
+      }
+      if (arg.startsWith("-e") && arg.length > 2) continue;
+      if (arg === "--dry-run") hasDryRun = true;
+      if (arg === "--force") hasForce = true;
+      if (/^-[a-zA-Z]+$/.test(arg)) {
+        if (arg.includes("n")) hasDryRun = true;
+        if (arg.includes("f")) hasForce = true;
+        if (arg.includes("d")) hasDir = true;
+        if (arg.includes("x") || arg.includes("X")) hasIgnored = true;
+      }
+    }
+    if (hasDryRun) {
+      return null;
+    }
+    if (hasForce && (hasDir || hasIgnored)) {
+      return "[SDLC Guardrail] Destructive 'git clean' (-fd/-fx/-fX/-fdx) is blocked. Require explicit user confirmation.";
+    }
+    return null;
+  }
+
+  if (subcmd !== "push") {
     return null;
   }
 
   i++;
   const positional = [];
   let endOfFlags = false;
+  let isForcePush = false;
   while (i < tokens.length) {
     const t = tokens[i].text;
     if (!endOfFlags && t === "--") {
@@ -276,19 +421,51 @@ function checkGitPush(tokens) {
       i += 2;
       continue;
     }
+    if (
+      !endOfFlags &&
+      (t === "-f" ||
+        t === "--force" ||
+        t === "--force-with-lease" ||
+        t.startsWith("--force-with-lease=") ||
+        t === "--force-if-includes" ||
+        (/^-[a-zA-Z]+$/.test(t) && t.includes("f")))
+    ) {
+      isForcePush = true;
+      i++;
+      continue;
+    }
     if (!endOfFlags && t.startsWith("-")) {
       i++;
       continue;
+    }
+    if (t.startsWith("+")) {
+      isForcePush = true;
     }
     positional.push(t);
     i++;
   }
 
-  if (positional.length === 0) {
+  if (isForcePush) {
+    return "[SDLC Guardrail] Force push ('--force', '-f', '--force-with-lease', '--force-if-includes', or '+refspec') is blocked to prevent remote history loss.";
+  }
+
+  // Implicit push ('git push' or 'git push origin') -> resolve active branch
+  if (positional.length <= 1) {
+    const resolveBranch = typeof branchResolver === "function" ? branchResolver : resolveCurrentGitBranch;
+    const currentBranch = resolveBranch(globalGitArgs, cwd, envOverrides);
+    if (currentBranch && PROTECTED_BRANCHES.has(currentBranch.toLowerCase())) {
+      return `[SDLC Guardrail] Implicit git push while on protected branch '${currentBranch}' is blocked. Switch to a feature branch and open a PR instead.`;
+    }
+    if (positional.length === 1) {
+      const target = extractTargetBranch(positional[0]);
+      if (PROTECTED_BRANCHES.has(target.toLowerCase())) {
+        return `[SDLC Guardrail] Direct git push to protected branch '${target}' is blocked. Push to a feature branch and open a PR instead.`;
+      }
+    }
     return null;
   }
 
-  const refspecs = positional.length === 1 ? [positional[0]] : positional.slice(1);
+  const refspecs = positional.slice(1);
   for (const refspec of refspecs) {
     const target = extractTargetBranch(refspec);
     if (PROTECTED_BRANCHES.has(target.toLowerCase())) {
@@ -328,23 +505,49 @@ function checkDotnetEf(tokens) {
   return null;
 }
 
-function evaluateCommandLine(commandLine, depth = 0) {
+const DIR_CHANGE_COMMANDS = new Set(["cd", "set-location", "sl", "pushd"]);
+
+function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
+  let options = {};
+  let depth = depthArg;
+  if (typeof optionsOrDepth === "number") {
+    depth = optionsOrDepth;
+  } else if (optionsOrDepth && typeof optionsOrDepth === "object") {
+    options = optionsOrDepth;
+    if (typeof options.depth === "number") {
+      depth = options.depth;
+    }
+  }
+
   if (depth > 3) return null;
+  let currentCwd = options.cwd || process.cwd();
+  const branchResolver =
+    typeof options.branchResolver === "function" ? options.branchResolver : resolveCurrentGitBranch;
+
   const segments = splitSegments(commandLine);
 
   for (const segment of segments) {
     const rawTokens = tokenizeSegment(segment);
-    const tokens = stripLeadingPrefixes(rawTokens);
+    const { tokens, envOverrides: segEnv } = stripLeadingPrefixes(rawTokens);
+    const envOverrides = options.envOverrides ? { ...options.envOverrides, ...segEnv } : segEnv;
     if (tokens.length === 0) continue;
 
     const exe = normalizeExeName(tokens[0].text);
+
+    if (DIR_CHANGE_COMMANDS.has(exe)) {
+      const targetDir = extractDirectoryChangeTarget(tokens);
+      if (targetDir && targetDir !== "-") {
+        currentCwd = path.resolve(currentCwd, targetDir);
+      }
+      continue;
+    }
 
     if (DIRECT_DB_CLIS.has(exe)) {
       return `[SDLC Guardrail] Direct database CLI execution ('${exe}') is blocked by DB-first policy.`;
     }
 
     if (exe === "git") {
-      const reason = checkGitPush(tokens);
+      const reason = checkGitCommand(tokens, currentCwd, branchResolver, envOverrides);
       if (reason) return reason;
     }
 
@@ -357,7 +560,11 @@ function evaluateCommandLine(commandLine, depth = 0) {
       for (let i = 1; i < tokens.length - 1; i++) {
         const flag = tokens[i].text.toLowerCase();
         if (flag === "-c" || flag === "-command" || flag === "/c") {
-          const nestedReason = evaluateCommandLine(tokens[i + 1].text, depth + 1);
+          const nestedReason = evaluateCommandLine(
+            tokens[i + 1].text,
+            { cwd: currentCwd, branchResolver, envOverrides },
+            depth + 1
+          );
           if (nestedReason) return nestedReason;
         }
       }
@@ -403,7 +610,8 @@ async function main() {
     return;
   }
 
-  const denyReason = evaluateCommandLine(commandLine);
+  const cwd = extractCwd(payload);
+  const denyReason = evaluateCommandLine(commandLine, { cwd });
   if (denyReason) {
     deny(denyReason);
     return;
@@ -412,6 +620,14 @@ async function main() {
   allow();
 }
 
-main().catch(() => {
-  allow();
-});
+export { evaluateCommandLine, extractCommand, extractCwd };
+
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isDirectRun) {
+  main().catch(() => {
+    allow();
+  });
+}

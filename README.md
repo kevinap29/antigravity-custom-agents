@@ -48,7 +48,7 @@ chmod +x install.sh && ./install.sh
   - **Contract Freeze Gate:** Parallel execution is only allowed after Phase 0 DTO contracts are finalized & pass the Ambiguity Gate, capped at **max 2 parallel subagents**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 remains optional (skipped for backend-only/minor tasks). When a prototype is created (`_prototypes/<feature-slug>.html`), `ui-prototyper` aligns with the project's CSS/icon/chart packages + *Component Mapping Note*, followed by a *Prototype Approval Gate*, 1:1 conversion by `frontend-mobile-dev`, and *Prototype Parity Audit* by `qa-code-reviewer`.
   - **Progressive Model Escalation:** If `qa-code-reviewer` emits `[CRITICAL][ESCALATE_MODEL]` or a `flash` subagent fails on iteration 2+, Team Lead spawns a new subagent with a higher model tier (`flash` → `inherit` → `pro`).
-- **Deterministic Quality & Security Gate (`scripts/verify-gate.ps1`):** Auto-detects `.NET` (`dotnet build`/`test`), `Node/SvelteKit` (`npm run check`/`build`/`test`), `Python` (`pytest`), plus static security scanners (`gitleaks`, `trivy`, and `semgrep` on Unix/macOS).
+- **Deterministic Quality & Security Gate (`plugins/antigravity-sdlc/scripts/verify-gate.ps1`):** Single-source-of-truth gate auto-detecting `.NET` (Core/6–11, MAUI Blazor + unit tests, Legacy `.NET Framework` via `MSBuild`), `Node/SvelteKit` (`npm run check`/`build`/`test` with Vitest detection), `Python` (`pytest`), plus static security scanners (`gitleaks`, `trivy`, and `semgrep` on Unix/macOS). Bundled inside `antigravity-sdlc` for sandboxed QA agents and mirrored to `~/.gemini/scripts/verify-gate.ps1` by the installer for CLI convenience.
 - **Optional Central Memory MCP (`mcp/central_memory_mcp.py` + Qdrant):** Cross-session semantic memory (`BAAI/bge-small-en-v1.5` local CPU embeddings via `fastembed` + 3 Qdrant modes: Local Embedded / Localhost Server / Remote VPS, `git_tree_hash` staleness protection), plus an optional auto-reconnecting SSH tunnel for restricted/office networks.
 - **Optional Graphify Code-Graph Lookup (`sdlc-team-lead` & `qa-code-reviewer`):** Zero-overhead intra-repo structural map for `Lane 2/3` tasks (silently skipped if neither `graphify` MCP nor `graphify-out/GRAPH_REPORT.md` exists). Reads `GRAPH_REPORT.md` / queries MCP for god nodes, DRY helpers, and blast radius before broad scans, while `templates/.antigravityignore` excludes heavy raw artifacts (`graph.json`, `*.html`, `cache/`).
 - **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Auto-detects OS & installed tools (e.g., automatically skips `semgrep` on Windows, checks `node` for guardrails), auto-migrates legacy `config/skills/` bundle folders, and persists Add-on selections in `~/.gemini/.addons.json` for `update` & `verify`.
@@ -78,6 +78,8 @@ antigravity-custom-agents/
 │   │   │   └── sdlc-guardrails.mjs # Node.js guardrail (protected branches, DB CLI, EF migrations)
 │   │   ├── rules/
 │   │   │   └── ENGINEERING_RULES.md # Static engineering guardrails (auto-updated)
+│   │   ├── scripts/
+│   │   │   └── verify-gate.ps1 # Deterministic build/test + security scanner gate (single source of truth)
 │   │   └── skills/             # 3 bundled domain skills
 │   │       ├── dotnet-webforms-patterns/SKILL.md
 │   │       ├── frontend-mobile-patterns/SKILL.md
@@ -86,10 +88,11 @@ antigravity-custom-agents/
 │       ├── plugin.json         # RTK plugin metadata
 │       ├── hooks.json          # PreToolUse hook (rtk hook antigravity)
 │       └── rules/AGENTS.md     # RTK usage & output recovery rules
-├── scripts/                    # Deterministic Gate & optional SSH Tunnel scripts
-│   ├── verify-gate.ps1         # Deterministic build/test + security scanner gate
+├── scripts/                    # Optional SSH Tunnel scripts
 │   ├── qdrant-tunnel.ps1       # Auto-reconnecting SSH tunnel (env/param-based)
 │   └── qdrant-tunnel-hidden.vbs# Hidden Windows Task Scheduler launcher (%USERPROFILE%)
+├── tests/                      # Zero-dependency Node.js unit tests (node --test)
+│   └── sdlc-guardrails.test.mjs # Guardrail hook regression tests
 ├── mcp/                        # Central Memory MCP Server (Optional)
 │   ├── central_memory_mcp.py   # Qdrant + fastembed MCP (git_tree_hash staleness check)
 │   └── requirements.txt        # Python dependencies (qdrant-client[fastembed], fastmcp)
@@ -153,7 +156,7 @@ antigravity-custom-agents/
 
 ## 🚀 Automated Installation — Modular (Core + Add-ons)
 
-The v2.0 installer splits setup into **Core** (mandatory: `agents/`, `plugins/antigravity-sdlc/`, `plugins/rtk/`, `scripts/verify-gate.ps1`, `GEMINI.md`) and **3 Optional Add-ons** with an automatic **OS/Environment Preflight Check**:
+The v2.0 installer splits setup into **Core** (mandatory: `agents/`, `plugins/antigravity-sdlc/` including `scripts/verify-gate.ps1`, `plugins/rtk/`, `GEMINI.md`) and **3 Optional Add-ons** with an automatic **OS/Environment Preflight Check**:
 - **Add-on A (Security Scanners):** `gitleaks` & `trivy` (via `winget` on Windows; `semgrep` is automatically skipped on Windows due to lack of native support, and offered on Linux/macOS).
 - **Add-on B (Central Memory MCP / Qdrant — 3 Modes):** Copies `mcp/` & `memory/`, checks Python 3 first, offers `.venv` + `requirements.txt` setup, and lets you choose from 3 Qdrant modes:
   - **`Local` (Embedded — Default):** Zero-setup, no VPS/Docker/service required; stores vectors in `~/.gemini/memory/qdrant_local` via `QDRANT_LOCAL_PATH` (automatically skips Add-on C).
@@ -207,7 +210,7 @@ bash install.sh --gemini-mode=skip --response-language="English" --with-security
 winget install Gitleaks.Gitleaks
 winget install AquaSecurity.Trivy
 ```
-*(If not installed, `scripts/verify-gate.ps1` runs safely and skips unavailable scanners.)*
+*(If not installed, `verify-gate.ps1` runs safely and skips unavailable scanners.)*
 
 ### 2. Central Memory MCP (Python 3.13 + Qdrant)
 1. Ensure **Python 3.13** (or 3.10+) is installed, then create a virtual environment at `%USERPROFILE%\.gemini\mcp\.venv`:
@@ -245,7 +248,7 @@ If you prefer copying files manually:
 1. **Copy all agents (`agents/*.md`)** to both `~/.gemini/config/agents/` and `~/.gemini/antigravity/agents/` (symlink allowed).
 2. **Copy `antigravity-sdlc` plugin (`plugins/antigravity-sdlc/`)** to `~/.gemini/config/plugins/antigravity-sdlc/` and replace `__HOOK_SCRIPT_PATH__` in its `hooks.json` with the absolute path to `hooks/sdlc-guardrails.mjs` (set `"enabled": false` if `node` is not installed).
 3. **Copy RTK plugin (`plugins/rtk/`)** to `~/.gemini/config/plugins/rtk/`.
-4. **Copy `scripts/verify-gate.ps1`** to `~/.gemini/scripts/verify-gate.ps1`.
+4. **(Optional CLI Mirror) Copy `plugins/antigravity-sdlc/scripts/verify-gate.ps1`** to `~/.gemini/scripts/verify-gate.ps1` (sandboxed QA uses the copy inside `~/.gemini/config/plugins/antigravity-sdlc/scripts/verify-gate.ps1`).
 5. **Copy or merge `GEMINI.md`** to `~/.gemini/GEMINI.md`.
 
 ---
