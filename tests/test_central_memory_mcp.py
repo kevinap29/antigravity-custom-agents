@@ -138,7 +138,96 @@ class CentralMemoryMcpTests(unittest.TestCase):
                 self.assertEqual(res_missing["rules"]["global"], "# Global\nrule-1")
                 self.assertEqual(res_missing["rules"]["architecture"], "")
 
-    def test_memory_search_discards_stale_blueprints_only(self) -> None:
+    def test_blueprint_fingerprint_ignores_non_structural_edits_and_detects_manifest_or_dir_changes(
+        self,
+    ) -> None:
+        base_tree = "\n".join(
+            [
+                "100644 blob aaa111\tREADME.md",
+                "100644 blob bbb111\tpackage.json",
+                "100644 blob ccc111\tsrc/app.ts",
+                "100644 blob ddd111\tsrc/api/routes/users.ts",
+                "100644 blob eee111\tsrc/Api/Api.csproj",
+            ]
+        )
+        non_structural_edit = "\n".join(
+            [
+                "100644 blob aaa999\tREADME.md",
+                "100644 blob bbb111\tpackage.json",
+                "100644 blob ccc999\tsrc/app.ts",
+                "100644 blob ddd111\tsrc/api/routes/users.ts",
+                "100644 blob fff222\tsrc/api/routes/orders.ts",
+                "100644 blob eee111\tsrc/Api/Api.csproj",
+            ]
+        )
+        manifest_package_edit = base_tree.replace("bbb111\tpackage.json", "bbb999\tpackage.json")
+        manifest_csproj_edit = base_tree.replace("eee111\tsrc/Api/Api.csproj", "eee999\tsrc/Api/Api.csproj")
+        new_depth2_dir = base_tree + "\n100644 blob ggg111\tsrc/billing/service.ts"
+        new_depth1_dir = base_tree + "\n100644 blob hhh111\tdocs/guide.md"
+
+        def _fp_for(stdout: str) -> str | None:
+            completed = types.SimpleNamespace(returncode=0, stdout=stdout)
+            with mock.patch.object(central_memory_mcp.subprocess, "run", return_value=completed):
+                return central_memory_mcp._blueprint_fingerprint("/repo")
+
+        fp_base = _fp_for(base_tree)
+        self.assertIsNotNone(fp_base)
+        self.assertTrue(fp_base.startswith("struct:"))
+        self.assertEqual(len(fp_base), len("struct:") + 16)
+
+        self.assertEqual(_fp_for(non_structural_edit), fp_base)
+        self.assertNotEqual(_fp_for(manifest_package_edit), fp_base)
+        self.assertNotEqual(_fp_for(manifest_csproj_edit), fp_base)
+        self.assertNotEqual(_fp_for(new_depth2_dir), fp_base)
+        self.assertNotEqual(_fp_for(new_depth1_dir), fp_base)
+
+    def test_blueprint_fingerprint_subdir_scoping_and_error_handling(self) -> None:
+        self.assertIsNone(central_memory_mcp._blueprint_fingerprint(""))
+
+        fail_res = types.SimpleNamespace(returncode=128, stdout="")
+        with mock.patch.object(central_memory_mcp.subprocess, "run", return_value=fail_res):
+            self.assertIsNone(central_memory_mcp._blueprint_fingerprint("/not-a-repo"))
+
+        # Nonexistent subdir returns empty ls-tree stdout with exit 0 -> must return None
+        empty_res = types.SimpleNamespace(returncode=0, stdout="   \n")
+        with mock.patch.object(central_memory_mcp.subprocess, "run", return_value=empty_res):
+            self.assertIsNone(central_memory_mcp._blueprint_fingerprint("/repo", subdir="missing/dir"))
+
+        scoped_stdout = "\n".join(
+            [
+                "100644 blob 111aaa\tservices/api/package.json",
+                "100644 blob 222bbb\tservices/api/src/routes/health.ts",
+            ]
+        )
+        ok_res = types.SimpleNamespace(returncode=0, stdout=scoped_stdout)
+        for variant in ("services/api/", r"services\api", "./services/api", r".\services\api\\"):
+            with self.subTest(subdir=variant):
+                with mock.patch.object(
+                    central_memory_mcp.subprocess, "run", return_value=ok_res
+                ) as run_mock:
+                    fp_scoped = central_memory_mcp._blueprint_fingerprint("/repo", subdir=variant)
+
+                self.assertEqual(
+                    run_mock.call_args.args[0],
+                    ["git", "-C", "/repo", "ls-tree", "-r", "HEAD", "--", "services/api"],
+                )
+                self.assertEqual(run_mock.call_args.kwargs.get("encoding"), "utf-8")
+                self.assertEqual(run_mock.call_args.kwargs.get("errors"), "replace")
+
+        # Unscoped equivalent inside services/api should produce the exact same fingerprint
+        root_stdout = "\n".join(
+            [
+                "100644 blob 111aaa\tpackage.json",
+                "100644 blob 222bbb\tsrc/routes/health.ts",
+            ]
+        )
+        ok_root_res = types.SimpleNamespace(returncode=0, stdout=root_stdout)
+        with mock.patch.object(central_memory_mcp.subprocess, "run", return_value=ok_root_res):
+            fp_root = central_memory_mcp._blueprint_fingerprint("/repo/services/api", subdir=".")
+
+        self.assertEqual(fp_scoped, fp_root)
+
+    def test_memory_search_flags_stale_blueprints_by_default_and_discards_when_disabled(self) -> None:
         search_fn = _unwrap_tool(central_memory_mcp.memory_search)
 
         stale_blueprint = types.SimpleNamespace(
@@ -148,6 +237,7 @@ class CentralMemoryMcpTests(unittest.TestCase):
                 "document": "Old blueprint",
                 "category": "blueprint",
                 "git_tree_hash": "tree-old",
+                "blueprint_fingerprint": "struct:old0000000000000",
             },
         )
         fresh_blueprint = types.SimpleNamespace(
@@ -156,7 +246,8 @@ class CentralMemoryMcpTests(unittest.TestCase):
             payload={
                 "document": "Fresh blueprint",
                 "category": "blueprint",
-                "git_tree_hash": "tree-current",
+                "git_tree_hash": "tree-old",
+                "blueprint_fingerprint": "struct:curr000000000000",
             },
         )
         decision_hit = types.SimpleNamespace(
@@ -186,14 +277,84 @@ class CentralMemoryMcpTests(unittest.TestCase):
 
         with mock.patch.object(central_memory_mcp, "_qdrant", return_value=mock_client), mock.patch.object(
             central_memory_mcp, "_embed", return_value=[0.1] * 384
-        ), mock.patch.object(central_memory_mcp, "_git_tree_hash", return_value="tree-current"):
-            result = search_fn(query="dropdown architecture", repo_path="/repo")
+        ), mock.patch.object(
+            central_memory_mcp, "_git_tree_hash", return_value="tree-current"
+        ), mock.patch.object(
+            central_memory_mcp, "_blueprint_fingerprint", return_value="struct:curr000000000000"
+        ):
+            # Default: include_stale_blueprints=True returns stale blueprint flagged
+            res_default = search_fn(query="dropdown architecture", repo_path="/repo")
+            # Opt-out: include_stale_blueprints=False discards stale blueprints
+            res_filtered = search_fn(
+                query="dropdown architecture",
+                repo_path="/repo",
+                include_stale_blueprints=False,
+            )
 
-        self.assertEqual(result["git_tree_hash"], "tree-current")
-        returned_ids = [hit["id"] for hit in result["hits"]]
-        self.assertEqual(returned_ids, ["bp-fresh", "dec-1", "pat-1"])
-        self.assertEqual(result["hits"][0]["document"], "Fresh blueprint")
-        self.assertNotIn("document", result["hits"][0]["metadata"])
+        self.assertEqual(res_default["git_tree_hash"], "tree-current")
+        self.assertEqual(res_default["blueprint_fingerprint"], "struct:curr000000000000")
+        self.assertEqual(
+            [hit["id"] for hit in res_default["hits"]],
+            ["bp-stale", "bp-fresh", "dec-1", "pat-1"],
+        )
+        self.assertTrue(res_default["hits"][0]["stale"])
+        self.assertEqual(res_default["hits"][0]["stale_reason"], "structural_change")
+        self.assertFalse(res_default["hits"][1]["stale"])
+        self.assertNotIn("stale_reason", res_default["hits"][1])
+        self.assertFalse(res_default["hits"][2]["stale"])
+        self.assertFalse(res_default["hits"][3]["stale"])
+
+        self.assertEqual(
+            [hit["id"] for hit in res_filtered["hits"]],
+            ["bp-fresh", "dec-1", "pat-1"],
+        )
+        self.assertEqual(res_filtered["hits"][0]["document"], "Fresh blueprint")
+        self.assertNotIn("document", res_filtered["hits"][0]["metadata"])
+
+    def test_memory_search_legacy_blueprint_fallback_to_git_tree_hash(self) -> None:
+        search_fn = _unwrap_tool(central_memory_mcp.memory_search)
+
+        legacy_stale = types.SimpleNamespace(
+            id="bp-legacy-stale",
+            score=0.93,
+            payload={
+                "document": "Legacy blueprint",
+                "category": "blueprint",
+                "git_tree_hash": "tree-old",
+            },
+        )
+        legacy_fresh = types.SimpleNamespace(
+            id="bp-legacy-fresh",
+            score=0.90,
+            payload={
+                "document": "Legacy fresh blueprint",
+                "category": "blueprint",
+                "git_tree_hash": "tree-current",
+            },
+        )
+
+        mock_client = mock.MagicMock()
+        mock_client.collection_exists.return_value = True
+        mock_client.query_points.return_value = types.SimpleNamespace(
+            points=[legacy_stale, legacy_fresh]
+        )
+
+        with mock.patch.object(central_memory_mcp, "_qdrant", return_value=mock_client), mock.patch.object(
+            central_memory_mcp, "_embed", return_value=[0.1] * 384
+        ), mock.patch.object(
+            central_memory_mcp, "_git_tree_hash", return_value="tree-current"
+        ), mock.patch.object(
+            central_memory_mcp, "_blueprint_fingerprint", return_value="struct:curr000000000000"
+        ):
+            res_default = search_fn(query="legacy", repo_path="/repo")
+            res_filtered = search_fn(
+                query="legacy", repo_path="/repo", include_stale_blueprints=False
+            )
+
+        self.assertTrue(res_default["hits"][0]["stale"])
+        self.assertEqual(res_default["hits"][0]["stale_reason"], "git_tree_mismatch")
+        self.assertFalse(res_default["hits"][1]["stale"])
+        self.assertEqual([hit["id"] for hit in res_filtered["hits"]], ["bp-legacy-fresh"])
 
     def test_ensure_collection_creates_category_and_repo_name_indexes(self) -> None:
         mock_client = mock.MagicMock()
@@ -258,7 +419,7 @@ class CentralMemoryMcpTests(unittest.TestCase):
         flt_empty = _run_search(repo_name="")
         self.assertIsNone(flt_empty)
 
-    def test_memory_search_overfetches_when_git_tree_hash_resolved(self) -> None:
+    def test_memory_search_overfetches_when_excluding_stale_blueprints(self) -> None:
         search_fn = _unwrap_tool(central_memory_mcp.memory_search)
 
         stale_points = [
@@ -268,6 +429,7 @@ class CentralMemoryMcpTests(unittest.TestCase):
                 payload={
                     "document": f"Stale blueprint {i}",
                     "category": "blueprint",
+                    "blueprint_fingerprint": "struct:old0000000000000",
                     "git_tree_hash": "tree-old",
                 },
             )
@@ -311,13 +473,22 @@ class CentralMemoryMcpTests(unittest.TestCase):
 
         with mock.patch.object(central_memory_mcp, "_qdrant", return_value=mock_client), mock.patch.object(
             central_memory_mcp, "_embed", return_value=[0.1] * 384
-        ), mock.patch.object(central_memory_mcp, "_git_tree_hash", return_value="tree-current"):
-            result = search_fn(query="architecture", repo_path="/repo", limit=2)
+        ), mock.patch.object(
+            central_memory_mcp, "_git_tree_hash", return_value="tree-current"
+        ), mock.patch.object(
+            central_memory_mcp, "_blueprint_fingerprint", return_value="struct:curr000000000000"
+        ):
+            result = search_fn(
+                query="architecture",
+                repo_path="/repo",
+                limit=2,
+                include_stale_blueprints=False,
+            )
 
         self.assertEqual(mock_client.query_points.call_args.kwargs["limit"], 15)
         self.assertEqual([hit["id"] for hit in result["hits"]], ["dec-valid", "pat-valid"])
 
-    def test_memory_store_deterministic_doc_ids(self) -> None:
+    def test_memory_store_deterministic_doc_ids_and_blueprint_fingerprint(self) -> None:
         store_fn = _unwrap_tool(central_memory_mcp.memory_store)
 
         mock_client = mock.MagicMock()
@@ -329,6 +500,8 @@ class CentralMemoryMcpTests(unittest.TestCase):
             central_memory_mcp, "_embed", return_value=[0.1] * 384
         ), mock.patch.object(
             central_memory_mcp, "_git_tree_hash", return_value="tree-abc"
+        ), mock.patch.object(
+            central_memory_mcp, "_blueprint_fingerprint", return_value="struct:1234567890abcdef"
         ):
             # 1. Blueprint without topic_key overwrites cleanly for same (repo_name, subdir)
             bp_v1 = store_fn(
@@ -347,6 +520,7 @@ class CentralMemoryMcpTests(unittest.TestCase):
             )
             self.assertEqual(bp_v1["id"], bp_v2["id"])
             self.assertIsNone(bp_v1["metadata"]["topic_key"])
+            self.assertEqual(bp_v1["metadata"]["blueprint_fingerprint"], "struct:1234567890abcdef")
 
             # 2. Decision WITH topic_key overwrites cleanly for same (repo_name, subdir, topic_key)
             dec_key_v1 = store_fn(
@@ -365,6 +539,7 @@ class CentralMemoryMcpTests(unittest.TestCase):
             )
             self.assertEqual(dec_key_v1["id"], dec_key_v2["id"])
             self.assertEqual(dec_key_v2["metadata"]["topic_key"], "auth-flow")
+            self.assertIsNone(dec_key_v1["metadata"]["blueprint_fingerprint"])
 
             # 3. Decision WITHOUT topic_key keeps distinct doc_ids for different content
             dec_a = store_fn(
@@ -434,6 +609,29 @@ class RuleConsistencyTests(unittest.TestCase):
             (REPO_ROOT / "templates" / "GEMINI.md").is_file(),
             "templates/GEMINI.md must exist as the installer template source.",
         )
+
+    def test_subagent_rule_deduplication_and_output_format_gate(self) -> None:
+        for name in ("dotnet-cqrs-dev.md", "db-data-engineer.md", "devops-git-ops.md"):
+            with self.subTest(agent=name):
+                text = (REPO_ROOT / "agents" / name).read_text(encoding="utf-8")
+                self.assertIn("ENGINEERING_RULES.md", text)
+                self.assertNotIn("dropdown", text.lower())
+
+        pr_fixer_text = (REPO_ROOT / "agents" / "pr-review-fixer.md").read_text(encoding="utf-8")
+        self.assertIn("ENGINEERING_RULES.md", pr_fixer_text)
+        self.assertNotIn("> 15", pr_fixer_text)
+        self.assertNotIn("8–15", pr_fixer_text)
+        self.assertNotIn("<= 7", pr_fixer_text)
+
+        ui_proto_text = (REPO_ROOT / "agents" / "ui-prototyper.md").read_text(encoding="utf-8")
+        self.assertIn("ENGINEERING_RULES.md", ui_proto_text)
+        self.assertNotIn("> 15", ui_proto_text)
+
+        team_lead_text = (REPO_ROOT / "agents" / "sdlc-team-lead.md").read_text(encoding="utf-8")
+        output_section = team_lead_text.split("# Mandatory Final Output Format", 1)[1]
+        self.assertIn("Lane 0 (`docs`) & Lane 1A (`micro`)", output_section)
+        self.assertIn("**skip** the 3 handover tables", output_section)
+        self.assertIn("Lane 1B (`small`) & Lane 2/3 (`standard`/`complex`)", output_section)
 
 
 if __name__ == "__main__":

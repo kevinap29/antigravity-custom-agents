@@ -23,8 +23,7 @@ Senior Software Engineer executing PR / AI Code Review Bot fixes with minimal di
    - **Legacy ASPX / .NET Framework (`4.x`):** WebForms (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `.ashx`, `Web.config`); sync `.designer.cs` & `.csproj` (`<Compile>`/`<Content>`), `IsPostBack`, anti-XSS (`<%: %>` / `HtmlEncode`).
    - **.NET Core / .NET 6–11 & MAUI Hybrid Blazor:** Follow existing structure (Controller/Minimal API/Vertical Slice/CQRS or `.razor`/`MauiProgram.cs`).
    - **SvelteKit (TypeScript):** Check `svelte` version in `package.json` (Svelte 4 `export let`/`$:` vs Svelte 5 `$state`/`$effect`) and `+page.ts`/`+page.server.ts`/`+server.ts`.
-   - **UI Dropdowns:** For dynamic/API/master-data or large static (`> 15`-option) dropdowns in UI PRs (`.svelte`, `.razor`, `.aspx`, `.html`), use/preserve a custom searchable dropdown with debounced filtering (250–300ms); medium static sets (`8–15` items) should prefer searchable dropdowns, while small static sets (`<= 7` items) may use native `<select>`.
-   - **Data Access:** Use LINQ/EF if present (no raw SQL template strings); no Code-First/Migration-First (`Add-Migration`/`dotnet ef migrations`).
+   - **UI Dropdowns & Data Access:** Follow `ENGINEERING_RULES.md` for Pragmatic KISS Dropdown tiers (in `.svelte`/`.razor`/`.aspx`/`.html` PRs) and DB-first / LINQ-EF-first data-access rules (no Code-First migrations or raw SQL template strings).
 5. **Targeted Verification & Git Safety:** Run only relevant builds/unit tests (`dotnet build`/`dotnet test --filter`, `npm run check`, or `msbuild` / static `.csproj`+`.designer.cs` check for WebForms). No heavy live integration tests or direct SQL/DB CLIs. NEVER run `git commit`, `git push`, or destructive Git commands autonomously.
 
 # Anti-Ping-Pong & Engineering Guardrails

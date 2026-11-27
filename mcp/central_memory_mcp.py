@@ -4,14 +4,17 @@ Centralized memory MCP server for Antigravity (qdrant-client 1.20+ & fastembed).
 Runs local CPU embeddings (BAAI/bge-small-en-v1.5) locally and syncs vectors
 to embedded local Qdrant (QDRANT_LOCAL_PATH), localhost Qdrant server, or
 remote Qdrant VPS over HTTPS REST / SSH tunnel.
-Validates AGENT_ROLE for write permissions and git_tree_hash for staleness checks.
+Validates AGENT_ROLE for write permissions and structural blueprint_fingerprint
+(with git_tree_hash fallback) for staleness checks.
 """
 
+import fnmatch
+import hashlib
 import os
 import subprocess
 import time
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from fastembed import TextEmbedding
@@ -40,6 +43,28 @@ COLLECTION_NAME = "agent_hub_memory"
 EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 EMBED_DIM = 384
 ALLOWED_WRITERS = {"hermes", "antigravity"}
+_STRUCTURAL_MANIFEST_NAMES = frozenset(
+    {
+        "package.json",
+        "tsconfig.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "Dockerfile",
+        "Web.config",
+        "appsettings.json",
+        "plugin.json",
+        "hooks.json",
+        "go.mod",
+        "Cargo.toml",
+    }
+)
+_STRUCTURAL_MANIFEST_PATTERNS = (
+    "*.sln",
+    "*.csproj",
+    "svelte.config.*",
+    "docker-compose*.yml",
+    "docker-compose*.yaml",
+)
 
 _client: QdrantClient | None = None
 _embedder: TextEmbedding | None = None
@@ -99,16 +124,86 @@ def _require_writer() -> None:
         )
 
 
+def _normalize_subdir(subdir: str) -> str:
+    clean = subdir.strip().replace("\\", "/")
+    while clean.startswith("./"):
+        clean = clean[2:]
+    clean = clean.strip("/")
+    return "" if clean in ("", ".") else clean
+
+
 def _git_tree_hash(repo_path: str, subdir: str = ".") -> str | None:
     if not repo_path:
         return None
-    target = "HEAD^{tree}" if subdir in ("", ".") else f"HEAD:{subdir.strip('/')}"
+    clean_subdir = _normalize_subdir(subdir)
+    target = "HEAD^{tree}" if not clean_subdir else f"HEAD:{clean_subdir}"
     res = subprocess.run(
         ["git", "-C", repo_path, "rev-parse", target],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return res.stdout.strip() if res.returncode == 0 else None
+
+
+def _is_structural_manifest(filename: str) -> bool:
+    if filename in _STRUCTURAL_MANIFEST_NAMES:
+        return True
+    return any(fnmatch.fnmatchcase(filename, pat) for pat in _STRUCTURAL_MANIFEST_PATTERNS)
+
+
+def _blueprint_fingerprint(repo_path: str, subdir: str = ".") -> str | None:
+    if not repo_path:
+        return None
+    clean_subdir = _normalize_subdir(subdir)
+    cmd = ["git", "-C", repo_path, "ls-tree", "-r", "HEAD"]
+    if clean_subdir:
+        cmd.extend(["--", clean_subdir])
+    res = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if res.returncode != 0 or not res.stdout.strip():
+        return None
+
+    manifest_entries: list[str] = []
+    dir_entries: set[str] = set()
+    subdir_prefix = f"{clean_subdir}/" if clean_subdir else ""
+
+    for line in res.stdout.splitlines():
+        if not line.strip():
+            continue
+        meta, sep, raw_path = line.partition("\t")
+        if not sep:
+            continue
+        meta_parts = meta.split()
+        if len(meta_parts) < 3:
+            continue
+        blob_hash = meta_parts[2]
+        rel_path = raw_path.strip().lstrip("/")
+        if subdir_prefix:
+            if rel_path.startswith(subdir_prefix):
+                rel_path = rel_path[len(subdir_prefix) :]
+            elif rel_path == clean_subdir:
+                rel_path = PurePosixPath(rel_path).name
+
+        posix_path = PurePosixPath(rel_path)
+        if _is_structural_manifest(posix_path.name):
+            manifest_entries.append(f"manifest:{rel_path}:{blob_hash}")
+
+        parent_parts = posix_path.parts[:-1]
+        for depth in range(1, min(len(parent_parts), 2) + 1):
+            dir_path = "/".join(parent_parts[:depth])
+            if dir_path and dir_path != ".":
+                dir_entries.add(f"dir:{dir_path}")
+
+    signals = sorted(set(manifest_entries) | dir_entries)
+    digest = hashlib.sha256("\n".join(signals).encode("utf-8")).hexdigest()
+    return f"struct:{digest[:16]}"
 
 
 @mcp.tool
@@ -138,8 +233,9 @@ def memory_search(
     min_score: float = 0.72,
     repo_name: str = "",
     include_global: bool = True,
+    include_stale_blueprints: bool = True,
 ) -> dict:
-    """Search vector memory; auto-discards stale blueprint results using git_tree_hash."""
+    """Search vector memory; flags or discards stale blueprints via structural fingerprint."""
     client = _qdrant()
     if not client.collection_exists(COLLECTION_NAME):
         return {"role": AGENT_ROLE, "hits": [], "note": "Collection uninitialized."}
@@ -159,9 +255,13 @@ def memory_search(
                 FieldCondition(key="repo_name", match=MatchValue(value=normalized_repo))
             )
 
+    current_fp = _blueprint_fingerprint(repo_path, subdir) if repo_path else None
     current_tree = _git_tree_hash(repo_path, subdir) if repo_path else None
     query_filter = Filter(must=conditions) if conditions else None
-    fetch_limit = min(max(limit * 3, 15), 50) if current_tree is not None else limit
+    should_overfetch = not include_stale_blueprints and (
+        current_fp is not None or current_tree is not None
+    )
+    fetch_limit = min(max(limit * 3, 15), 50) if should_overfetch else limit
 
     response = client.query_points(
         collection_name=COLLECTION_NAME,
@@ -176,21 +276,40 @@ def memory_search(
     for item in response.points:
         payload = dict(item.payload or {})
         document = payload.pop("document", "")
-        if payload.get("category") == "blueprint" and current_tree:
-            if payload.get("git_tree_hash") != current_tree:
+        is_stale = False
+        stale_reason: str | None = None
+        if payload.get("category") == "blueprint":
+            stored_fp = payload.get("blueprint_fingerprint")
+            if stored_fp and current_fp:
+                if stored_fp != current_fp:
+                    is_stale = True
+                    stale_reason = "structural_change"
+            elif current_tree:
+                if payload.get("git_tree_hash") != current_tree:
+                    is_stale = True
+                    stale_reason = "git_tree_mismatch"
+            if is_stale and not include_stale_blueprints:
                 continue
-        hits.append(
-            {
-                "id": str(item.id),
-                "score": round(float(item.score), 4),
-                "document": document,
-                "metadata": payload,
-            }
-        )
+
+        hit = {
+            "id": str(item.id),
+            "score": round(float(item.score), 4),
+            "document": document,
+            "metadata": payload,
+            "stale": is_stale,
+        }
+        if is_stale and stale_reason is not None:
+            hit["stale_reason"] = stale_reason
+        hits.append(hit)
         if len(hits) >= limit:
             break
 
-    return {"role": AGENT_ROLE, "git_tree_hash": current_tree, "hits": hits[:limit]}
+    return {
+        "role": AGENT_ROLE,
+        "git_tree_hash": current_tree,
+        "blueprint_fingerprint": current_fp,
+        "hits": hits[:limit],
+    }
 
 
 @mcp.tool
@@ -209,6 +328,7 @@ def memory_store(
     _ensure_collection(client)
 
     tree_hash = _git_tree_hash(repo_path, subdir) if repo_path else None
+    bp_fingerprint = _blueprint_fingerprint(repo_path, subdir) if repo_path else None
     normalized_key = topic_key.strip()
     if normalized_key:
         id_seed = f"{category}:{repo_name}:{subdir}:{normalized_key}"
@@ -223,6 +343,7 @@ def memory_store(
         "repo_name": repo_name,
         "subdir": subdir,
         "git_tree_hash": tree_hash,
+        "blueprint_fingerprint": bp_fingerprint,
         "tags": tags or [],
         "topic_key": normalized_key or None,
         "stored_at": int(time.time()),

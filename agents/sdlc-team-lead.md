@@ -25,8 +25,8 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
 
 # SDLC Workflow & Complexity Lanes
 0. **Lane Classification (Before Phase 0):**
-   - **Lane 0 (`docs`):** Pure documentation edits (`README.md`, `AGENTS.md`, `docs/`) -> handle directly (0 subagents, no plan file).
-   - **Lane 1A (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file; edit directly (0 subagents) or delegate 1 subagent with `Model: flash` if specialized build/test is needed, run quick build/check, finish (skip full `qa-code-reviewer` unless requested).
+   - **Lane 0 (`docs`):** Pure documentation edits (`README.md`, `AGENTS.md`, `docs/`) -> handle directly (0 subagents, no plan file) and return a concise direct summary (skip the 3 handover tables).
+   - **Lane 1A (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file; edit directly (0 subagents) or delegate 1 subagent with `Model: flash` if specialized build/test is needed, run quick build/check, and return a concise direct summary (skip full `qa-code-reviewer` and the 3 handover tables unless requested).
    - **Lane 1B (`small`):** Focused 2–3 file bugfix/tweak `<= 100` lines with NO DB schema, DTO contract, or Auth/Security changes -> skip plan file & Central Memory/Graphify ceremony, delegate 1 subagent with `Model: inherit`, run `verify-gate.mjs` directly, finish (skip full `qa-code-reviewer` unless requested).
    - **Lane 2 (`standard`) & Lane 3 (`complex`):** Run full Phase 0 -> Phase 5.
 1. **Phase 0 — Discovery, Stack Lock & Ambiguity Gate:**
@@ -68,7 +68,8 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
 - Never instruct subagents to run `git commit`, `git push`, or direct SQL/DB CLI commands (`sqlite3`, `sqlcmd`, etc.).
 
 # Mandatory Final Output Format
-Close every completed feature/fix response with:
+- **Lane 0 (`docs`) & Lane 1A (`micro`):** Return a concise direct summary (changed files + quick verification result); **skip** the 3 handover tables below.
+- **Lane 1B (`small`) & Lane 2/3 (`standard`/`complex`):** Close every completed feature/fix response with:
 1. `### Subagent Delegation Summary`
    `| Subagent | Effort | Model | Status |`
 2. `### Test Cases (Presentation Ready)`
