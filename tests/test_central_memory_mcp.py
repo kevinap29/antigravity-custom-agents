@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 import tempfile
 import types
@@ -69,6 +70,7 @@ def _ensure_mcp_dependency_stubs() -> None:
         models_mod.PayloadSchemaType = _StubPayloadSchemaType
         models_mod.FieldCondition = _StubDataClass
         models_mod.Filter = _StubDataClass
+        models_mod.MatchAny = _StubDataClass
         models_mod.MatchValue = _StubDataClass
         models_mod.PointStruct = _StubDataClass
         models_mod.VectorParams = _StubDataClass
@@ -193,6 +195,193 @@ class CentralMemoryMcpTests(unittest.TestCase):
         self.assertEqual(result["hits"][0]["document"], "Fresh blueprint")
         self.assertNotIn("document", result["hits"][0]["metadata"])
 
+    def test_ensure_collection_creates_category_and_repo_name_indexes(self) -> None:
+        mock_client = mock.MagicMock()
+        mock_client.collection_exists.return_value = False
+
+        central_memory_mcp._ensure_collection(mock_client)
+
+        mock_client.create_collection.assert_called_once()
+        indexed_fields = [
+            (call.kwargs["field_name"], call.kwargs["field_schema"])
+            for call in mock_client.create_payload_index.call_args_list
+        ]
+        self.assertEqual(
+            indexed_fields,
+            [
+                ("category", central_memory_mcp.PayloadSchemaType.KEYWORD),
+                ("repo_name", central_memory_mcp.PayloadSchemaType.KEYWORD),
+            ],
+        )
+
+    def test_memory_search_repo_name_filtering_variants(self) -> None:
+        search_fn = _unwrap_tool(central_memory_mcp.memory_search)
+
+        def _run_search(**kwargs):
+            mock_client = mock.MagicMock()
+            mock_client.collection_exists.return_value = True
+            mock_client.query_points.return_value = types.SimpleNamespace(points=[])
+            with mock.patch.object(
+                central_memory_mcp, "_qdrant", return_value=mock_client
+            ), mock.patch.object(
+                central_memory_mcp, "_embed", return_value=[0.1] * 384
+            ):
+                search_fn(query="auth pattern", **kwargs)
+            return mock_client.query_points.call_args.kwargs["query_filter"]
+
+        # repo_name with default include_global=True -> MatchAny(["billing-api", "global"])
+        flt_with_global = _run_search(repo_name="billing-api")
+        self.assertIsNotNone(flt_with_global)
+        self.assertEqual(len(flt_with_global.must), 1)
+        cond_with_global = flt_with_global.must[0]
+        self.assertEqual(cond_with_global.key, "repo_name")
+        self.assertIsInstance(cond_with_global.match, central_memory_mcp.MatchAny)
+        self.assertEqual(cond_with_global.match.any, ["billing-api", "global"])
+
+        # repo_name with include_global=False -> MatchValue("billing-api")
+        flt_repo_only = _run_search(repo_name="billing-api", include_global=False)
+        self.assertIsNotNone(flt_repo_only)
+        self.assertEqual(len(flt_repo_only.must), 1)
+        cond_repo_only = flt_repo_only.must[0]
+        self.assertEqual(cond_repo_only.key, "repo_name")
+        self.assertIsInstance(cond_repo_only.match, central_memory_mcp.MatchValue)
+        self.assertEqual(cond_repo_only.match.value, "billing-api")
+
+        # repo_name="global" with include_global=True -> MatchValue("global")
+        flt_global_only = _run_search(repo_name="global", include_global=True)
+        self.assertIsNotNone(flt_global_only)
+        self.assertEqual(flt_global_only.must[0].key, "repo_name")
+        self.assertIsInstance(flt_global_only.must[0].match, central_memory_mcp.MatchValue)
+        self.assertEqual(flt_global_only.must[0].match.value, "global")
+
+        # Empty repo_name -> no repo_name filter (query_filter is None when category="any")
+        flt_empty = _run_search(repo_name="")
+        self.assertIsNone(flt_empty)
+
+    def test_memory_search_overfetches_when_git_tree_hash_resolved(self) -> None:
+        search_fn = _unwrap_tool(central_memory_mcp.memory_search)
+
+        stale_points = [
+            types.SimpleNamespace(
+                id=f"bp-stale-{i}",
+                score=0.99 - i * 0.01,
+                payload={
+                    "document": f"Stale blueprint {i}",
+                    "category": "blueprint",
+                    "git_tree_hash": "tree-old",
+                },
+            )
+            for i in range(5)
+        ]
+        valid_points = [
+            types.SimpleNamespace(
+                id="dec-valid",
+                score=0.85,
+                payload={
+                    "document": "Valid decision",
+                    "category": "decision",
+                    "git_tree_hash": "tree-old",
+                },
+            ),
+            types.SimpleNamespace(
+                id="pat-valid",
+                score=0.82,
+                payload={
+                    "document": "Valid pattern",
+                    "category": "pattern",
+                    "git_tree_hash": None,
+                },
+            ),
+            types.SimpleNamespace(
+                id="pat-extra",
+                score=0.80,
+                payload={
+                    "document": "Extra pattern beyond limit",
+                    "category": "pattern",
+                    "git_tree_hash": None,
+                },
+            ),
+        ]
+
+        mock_client = mock.MagicMock()
+        mock_client.collection_exists.return_value = True
+        mock_client.query_points.return_value = types.SimpleNamespace(
+            points=stale_points + valid_points
+        )
+
+        with mock.patch.object(central_memory_mcp, "_qdrant", return_value=mock_client), mock.patch.object(
+            central_memory_mcp, "_embed", return_value=[0.1] * 384
+        ), mock.patch.object(central_memory_mcp, "_git_tree_hash", return_value="tree-current"):
+            result = search_fn(query="architecture", repo_path="/repo", limit=2)
+
+        self.assertEqual(mock_client.query_points.call_args.kwargs["limit"], 15)
+        self.assertEqual([hit["id"] for hit in result["hits"]], ["dec-valid", "pat-valid"])
+
+    def test_memory_store_deterministic_doc_ids(self) -> None:
+        store_fn = _unwrap_tool(central_memory_mcp.memory_store)
+
+        mock_client = mock.MagicMock()
+        mock_client.collection_exists.return_value = True
+
+        with mock.patch.object(central_memory_mcp, "AGENT_ROLE", "antigravity"), mock.patch.object(
+            central_memory_mcp, "_qdrant", return_value=mock_client
+        ), mock.patch.object(
+            central_memory_mcp, "_embed", return_value=[0.1] * 384
+        ), mock.patch.object(
+            central_memory_mcp, "_git_tree_hash", return_value="tree-abc"
+        ):
+            # 1. Blueprint without topic_key overwrites cleanly for same (repo_name, subdir)
+            bp_v1 = store_fn(
+                content="Blueprint v1",
+                category="blueprint",
+                repo_name="billing-api",
+                repo_path="/repo",
+                subdir="src",
+            )
+            bp_v2 = store_fn(
+                content="Blueprint v2 with updated layout",
+                category="blueprint",
+                repo_name="billing-api",
+                repo_path="/repo",
+                subdir="src",
+            )
+            self.assertEqual(bp_v1["id"], bp_v2["id"])
+            self.assertIsNone(bp_v1["metadata"]["topic_key"])
+
+            # 2. Decision WITH topic_key overwrites cleanly for same (repo_name, subdir, topic_key)
+            dec_key_v1 = store_fn(
+                content="Use JWT v1",
+                category="decision",
+                repo_name="billing-api",
+                subdir=".",
+                topic_key="auth-flow",
+            )
+            dec_key_v2 = store_fn(
+                content="Use JWT v2 with refresh rotation",
+                category="decision",
+                repo_name="billing-api",
+                subdir=".",
+                topic_key=" auth-flow ",
+            )
+            self.assertEqual(dec_key_v1["id"], dec_key_v2["id"])
+            self.assertEqual(dec_key_v2["metadata"]["topic_key"], "auth-flow")
+
+            # 3. Decision WITHOUT topic_key keeps distinct doc_ids for different content
+            dec_a = store_fn(
+                content="Decision alpha",
+                category="decision",
+                repo_name="billing-api",
+                subdir=".",
+            )
+            dec_b = store_fn(
+                content="Decision beta",
+                category="decision",
+                repo_name="billing-api",
+                subdir=".",
+            )
+            self.assertNotEqual(dec_a["id"], dec_b["id"])
+            self.assertIsNone(dec_a["metadata"]["topic_key"])
+
 
 class RuleConsistencyTests(unittest.TestCase):
     def test_global_rules_and_engineering_rules_stay_in_sync(self) -> None:
@@ -205,12 +394,36 @@ class RuleConsistencyTests(unittest.TestCase):
         for label, text in (("GLOBAL_RULES.md", global_text), ("ENGINEERING_RULES.md", eng_text)):
             with self.subTest(file=label):
                 lower = text.lower()
-                self.assertIn("> 7", text)
+                self.assertIn("> 15", text)
+                self.assertTrue("8–15" in text or "8-15" in text)
                 self.assertIn("<= 7", text)
                 self.assertIn("debounced", lower)
                 self.assertIn("searchable", lower)
                 self.assertIn("db-first", lower)
                 self.assertIn("LINQ/EF", text)
+                self.assertIn("git commit", lower)
+                self.assertIn("git clean -fd", lower)
+
+    def test_qa_code_reviewer_dropdown_thresholds(self) -> None:
+        qa_path = REPO_ROOT / "agents" / "qa-code-reviewer.md"
+        qa_text = qa_path.read_text(encoding="utf-8")
+        self.assertIn("[CRITICAL]", qa_text)
+        self.assertIn("> 15", qa_text)
+        self.assertIn("[WARNING]", qa_text)
+        self.assertTrue("8–15" in qa_text or "8-15" in qa_text)
+
+    def test_readme_docs_and_plugin_version_in_sync(self) -> None:
+        plugin_json = json.loads(
+            (REPO_ROOT / "plugins" / "antigravity-sdlc" / "plugin.json").read_text(encoding="utf-8")
+        )
+        plugin_version = plugin_json["version"]
+        self.assertEqual(plugin_version, "2.1.0")
+
+        for name in ("README.md", "README.id.md"):
+            with self.subTest(file=name):
+                text = (REPO_ROOT / name).read_text(encoding="utf-8")
+                self.assertNotIn("4-Lane", text)
+                self.assertIn(f"v{plugin_version}", text)
 
     def test_gemini_template_relocated_from_repo_root(self) -> None:
         self.assertFalse(

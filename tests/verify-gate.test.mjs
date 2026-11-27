@@ -9,6 +9,7 @@ import {
   detectDotnetProjects,
   detectNodeProjects,
   parseArgs,
+  runVerifyGate,
 } from "../plugins/antigravity-sdlc/scripts/verify-gate.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -235,18 +236,67 @@ test("detectDotnetProjects classifies Modern .NET, Multi-SLN, MAUI Windows TFM, 
   });
 });
 
-test("parseArgs parses --target-dir, positional dir, and --skip-security", () => {
-  assert.deepEqual(parseArgs([]), { targetDir: ".", skipSecurity: false });
+test("parseArgs parses --target-dir, positional dir, --skip-security, and --strict", () => {
+  assert.deepEqual(parseArgs([]), { targetDir: ".", skipSecurity: false, strict: false });
   assert.deepEqual(parseArgs(["--target-dir", "/repo", "--skip-security"]), {
     targetDir: "/repo",
     skipSecurity: true,
+    strict: false,
   });
   assert.deepEqual(parseArgs(["--target-dir=/repo2"]), {
     targetDir: "/repo2",
     skipSecurity: false,
+    strict: false,
   });
   assert.deepEqual(parseArgs(["./subdir", "--skip-security"]), {
     targetDir: "./subdir",
     skipSecurity: true,
+    strict: false,
+  });
+  assert.deepEqual(parseArgs(["--strict", "."]), {
+    targetDir: ".",
+    skipSecurity: false,
+    strict: true,
+  });
+});
+
+test("runVerifyGate warns on empty/unsupported stack dir and fails only when strict is true", () => {
+  withTempDir((tmpDir) => {
+    writeFile(tmpDir, "README.md", "# empty repo\n");
+
+    const nonStrict = runVerifyGate({ targetDir: tmpDir, skipSecurity: true, strict: false });
+    assert.equal(nonStrict.failed, false);
+    assert.equal(nonStrict.exitCode, 0);
+    assert.equal(nonStrict.executedBuildTestSteps, 0);
+    assert.equal(nonStrict.executedSecuritySteps, 0);
+    assert.ok(
+      nonStrict.summary.some((line) =>
+        line.includes(
+          "[WARN] No build/test stack detected (.NET, Node, Python) — 0 build/test checks executed. Run stack-specific verification manually."
+        )
+      ),
+      `Expected [WARN] for 0 build/test checks, got: ${JSON.stringify(nonStrict.summary)}`
+    );
+
+    const strictRes = runVerifyGate({ targetDir: tmpDir, skipSecurity: true, strict: true });
+    assert.equal(strictRes.failed, true);
+    assert.equal(strictRes.exitCode, 1);
+    assert.equal(strictRes.executedBuildTestSteps, 0);
+    assert.ok(
+      strictRes.summary.some((line) =>
+        line.includes(
+          "[WARN] No build/test stack detected (.NET, Node, Python) — 0 build/test checks executed. Run stack-specific verification manually."
+        )
+      ),
+      `Expected [WARN] for 0 build/test checks in strict mode, got: ${JSON.stringify(strictRes.summary)}`
+    );
+
+    const cliStrict = spawnSync(
+      process.execPath,
+      [VERIFY_GATE_SCRIPT, "--target-dir", tmpDir, "--skip-security", "--strict"],
+      { encoding: "utf8" }
+    );
+    assert.equal(cliStrict.status, 1, `Expected exit 1 in CLI --strict mode, got ${cliStrict.status}`);
+    assert.match(cliStrict.stdout, /\[WARN\] No build\/test stack detected/);
   });
 });

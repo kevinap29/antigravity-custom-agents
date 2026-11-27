@@ -26,7 +26,7 @@ Senior .NET Backend Engineer specializing in Vertical Slice Architecture, CQRS, 
 - Run `dotnet build` & `dotnet test` via `run_command` before reporting completion, and include final DTO property definitions.
 
 # Engineering Guardrails
-- Follow `ENGINEERING_RULES.md` (DB-first, Git safety, DRY, KISS/YAGNI, Zero Regression, Atomic/`IDisposable`, Doc Sync, Pragmatic KISS Dropdown > 7).
+- Follow `ENGINEERING_RULES.md` (DB-first, Git safety, DRY, KISS/YAGNI, Zero Regression, Atomic/`IDisposable`, Doc Sync, Pragmatic KISS Dropdown).
 - **Anti-Wrong Abstraction (Rule of Three):** Search existing helpers/validators/queries via `run_command` (`rg -n ... .`) and `read_file` first. Never merge distinct business flows with boolean flags; keep separate until patterns stabilize (`>= 3` cases), and split stale abstractions via **Inline & Split** (`[Obsolete]` if phased).
 - **SOLID & Pure Logic Separation:** Isolate pure domain rules from I/O (DB/HTTP/clock via thin interfaces or `Func<>`) for unit testability (**SRP/DIP**); keep interfaces small (**ISP**), prefer **Composition over Inheritance**, forbid `NotImplementedException` (**LSP**), and apply strategy/mapping (**OCP**) only for `>= 3` growing variants.
 - **Validate-Before-Allocate & Mutation Atomicity:** Validate inputs before allocating resources, enforce `WHERE` predicates + affected-row checks, and keep single-owner `IDisposable`/connection cleanup.

@@ -21,6 +21,7 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    MatchAny,
     MatchValue,
     PayloadSchemaType,
     PointStruct,
@@ -84,6 +85,11 @@ def _ensure_collection(client: QdrantClient) -> None:
             field_name="category",
             field_schema=PayloadSchemaType.KEYWORD,
         )
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="repo_name",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
 
 
 def _require_writer() -> None:
@@ -130,6 +136,8 @@ def memory_search(
     subdir: str = ".",
     limit: int = 5,
     min_score: float = 0.72,
+    repo_name: str = "",
+    include_global: bool = True,
 ) -> dict:
     """Search vector memory; auto-discards stale blueprint results using git_tree_hash."""
     client = _qdrant()
@@ -140,14 +148,26 @@ def memory_search(
     if category != "any":
         conditions.append(FieldCondition(key="category", match=MatchValue(value=category)))
 
+    normalized_repo = repo_name.strip()
+    if normalized_repo:
+        if include_global and normalized_repo != "global":
+            conditions.append(
+                FieldCondition(key="repo_name", match=MatchAny(any=[normalized_repo, "global"]))
+            )
+        else:
+            conditions.append(
+                FieldCondition(key="repo_name", match=MatchValue(value=normalized_repo))
+            )
+
     current_tree = _git_tree_hash(repo_path, subdir) if repo_path else None
     query_filter = Filter(must=conditions) if conditions else None
+    fetch_limit = min(max(limit * 3, 15), 50) if current_tree is not None else limit
 
     response = client.query_points(
         collection_name=COLLECTION_NAME,
         query=_embed(query),
         query_filter=query_filter,
-        limit=limit,
+        limit=fetch_limit,
         score_threshold=min_score,
         with_payload=True,
     )
@@ -167,8 +187,10 @@ def memory_search(
                 "metadata": payload,
             }
         )
+        if len(hits) >= limit:
+            break
 
-    return {"role": AGENT_ROLE, "git_tree_hash": current_tree, "hits": hits}
+    return {"role": AGENT_ROLE, "git_tree_hash": current_tree, "hits": hits[:limit]}
 
 
 @mcp.tool
@@ -179,6 +201,7 @@ def memory_store(
     repo_path: str = "",
     subdir: str = ".",
     tags: list[str] | None = None,
+    topic_key: str = "",
 ) -> dict:
     """Store a memory vector record in Qdrant (collection: agent_hub_memory)."""
     _require_writer()
@@ -186,7 +209,14 @@ def memory_store(
     _ensure_collection(client)
 
     tree_hash = _git_tree_hash(repo_path, subdir) if repo_path else None
-    doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{category}:{repo_name}:{subdir}:{content}"))
+    normalized_key = topic_key.strip()
+    if normalized_key:
+        id_seed = f"{category}:{repo_name}:{subdir}:{normalized_key}"
+    elif category == "blueprint":
+        id_seed = f"blueprint:{repo_name}:{subdir}"
+    else:
+        id_seed = f"{category}:{repo_name}:{subdir}:{content}"
+    doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, id_seed))
 
     metadata = {
         "category": category,
@@ -194,6 +224,7 @@ def memory_store(
         "subdir": subdir,
         "git_tree_hash": tree_hash,
         "tags": tags or [],
+        "topic_key": normalized_key or None,
         "stored_at": int(time.time()),
         "stored_by": AGENT_ROLE,
     }

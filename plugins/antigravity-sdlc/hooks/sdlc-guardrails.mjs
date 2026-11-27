@@ -200,14 +200,87 @@ function extractCwd(payload) {
   return undefined;
 }
 
+function hasClosingBacktick(str, startIdx) {
+  for (let i = startIdx; i < str.length; i++) {
+    if (str[i] === "\\" && i + 1 < str.length) {
+      i++;
+      continue;
+    }
+    if (str[i] === "`") {
+      return true;
+    }
+  }
+  return false;
+}
+
 function splitSegments(commandLine) {
   const segments = [];
   let current = "";
   let quote = null;
+  let cmdSubDepth = 0;
+  let subQuote = null;
+  let inBacktick = false;
 
   for (let i = 0; i < commandLine.length; i++) {
     const ch = commandLine[i];
     const next = commandLine[i + 1];
+
+    if (cmdSubDepth > 0) {
+      if (subQuote === "'") {
+        if (ch === "'") {
+          subQuote = null;
+        }
+        current += ch;
+        continue;
+      }
+
+      if (subQuote === '"') {
+        if (ch === "\\" && (next === '"' || next === "\\")) {
+          current += ch + next;
+          i++;
+          continue;
+        }
+        if (ch === '"') {
+          subQuote = null;
+        }
+        current += ch;
+        continue;
+      }
+
+      if (ch === "'" || ch === '"') {
+        subQuote = ch;
+        current += ch;
+        continue;
+      }
+
+      if (ch === "(") {
+        cmdSubDepth++;
+        current += ch;
+        continue;
+      }
+
+      if (ch === ")") {
+        cmdSubDepth--;
+        current += ch;
+        continue;
+      }
+
+      current += ch;
+      continue;
+    }
+
+    if (inBacktick) {
+      if (ch === "\\" && i + 1 < commandLine.length) {
+        current += ch + next;
+        i++;
+        continue;
+      }
+      if (ch === "`") {
+        inBacktick = false;
+      }
+      current += ch;
+      continue;
+    }
 
     if (quote === "'") {
       if (ch === "'") {
@@ -218,14 +291,46 @@ function splitSegments(commandLine) {
     }
 
     if (quote === '"') {
-      if (ch === "\\" && (next === '"' || next === "\\")) {
+      if (ch === "\\" && (next === '"' || next === "\\" || next === "$" || next === "`")) {
         current += ch + next;
         i++;
+        continue;
+      }
+      if (ch === "$" && next === "(") {
+        cmdSubDepth = 1;
+        subQuote = null;
+        current += ch + next;
+        i++;
+        continue;
+      }
+      if (ch === "`" && hasClosingBacktick(commandLine, i + 1)) {
+        inBacktick = true;
+        current += ch;
         continue;
       }
       if (ch === '"') {
         quote = null;
       }
+      current += ch;
+      continue;
+    }
+
+    if (ch === "\\" && (next === "$" || next === "`" || next === "'" || next === '"' || next === "\\")) {
+      current += ch + next;
+      i++;
+      continue;
+    }
+
+    if (ch === "$" && next === "(") {
+      cmdSubDepth = 1;
+      subQuote = null;
+      current += ch + next;
+      i++;
+      continue;
+    }
+
+    if (ch === "`" && hasClosingBacktick(commandLine, i + 1)) {
+      inBacktick = true;
       current += ch;
       continue;
     }
@@ -431,7 +536,7 @@ function extractDirectoryChangeTarget(tokens) {
   return null;
 }
 
-function checkGitCommand(tokens, cwd, branchResolver, envOverrides = {}) {
+function checkGitCommand(tokens, cwd, branchResolver, envOverrides = {}, allowGitCommit = false) {
   let i = 1;
   const globalGitArgs = [];
   while (i < tokens.length) {
@@ -468,6 +573,15 @@ function checkGitCommand(tokens, cwd, branchResolver, envOverrides = {}) {
   }
 
   const subcmd = tokens[i].text.toLowerCase();
+
+  if (subcmd === "commit") {
+    const commitAllowed =
+      allowGitCommit === true || process.env.SDLC_ALLOW_GIT_COMMIT === "1";
+    if (!commitAllowed) {
+      return "[SDLC Guardrail] Autonomous 'git commit' is blocked. Require explicit user confirmation (or set SDLC_ALLOW_GIT_COMMIT=1 for intentional manual override).";
+    }
+    return null;
+  }
 
   if (subcmd === "reset") {
     for (let j = i + 1; j < tokens.length; j++) {
@@ -829,6 +943,140 @@ function checkPowerShellDeleteCommand(tokens) {
 
 const DIR_CHANGE_COMMANDS = new Set(["cd", "set-location", "sl", "pushd"]);
 
+function isPowerShellEncodedFlag(flag) {
+  return flag === "-ec" || (flag.startsWith("-e") && "-encodedcommand".startsWith(flag));
+}
+
+function decodePowerShellEncodedCommand(rawPayload) {
+  if (typeof rawPayload !== "string") {
+    return null;
+  }
+  const trimmed = rawPayload.trim();
+  if (!trimmed || trimmed.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) {
+    return null;
+  }
+  try {
+    const buf = Buffer.from(trimmed, "base64");
+    if (buf.length === 0 || buf.length % 2 !== 0) {
+      return null;
+    }
+    const decoded = buf.toString("utf16le").replace(/\0/g, "").trim();
+    return decoded.length > 0 ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractCommandSubstitutions(segment) {
+  const results = [];
+  let quote = null;
+
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i];
+    const next = segment[i + 1];
+
+    if (quote === "'") {
+      if (ch === "'") {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (quote === '"') {
+      if (ch === "\\" && (next === '"' || next === "\\" || next === "$" || next === "`")) {
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        quote = null;
+        continue;
+      }
+    } else {
+      if (ch === "\\" && (next === "$" || next === "`" || next === "'" || next === '"' || next === "\\")) {
+        i++;
+        continue;
+      }
+      if (ch === "'" || ch === '"') {
+        quote = ch;
+        continue;
+      }
+    }
+
+    if (ch === "$" && next === "(") {
+      let j = i + 2;
+      let parenDepth = 1;
+      let innerQuote = null;
+
+      while (j < segment.length && parenDepth > 0) {
+        const c = segment[j];
+        const cn = segment[j + 1];
+
+        if (innerQuote === "'") {
+          if (c === "'") {
+            innerQuote = null;
+          }
+          j++;
+          continue;
+        }
+
+        if (innerQuote === '"') {
+          if (c === "\\" && (cn === '"' || cn === "\\")) {
+            j += 2;
+            continue;
+          }
+          if (c === '"') {
+            innerQuote = null;
+          }
+          j++;
+          continue;
+        }
+
+        if (c === "'" || c === '"') {
+          innerQuote = c;
+        } else if (c === "(") {
+          parenDepth++;
+        } else if (c === ")") {
+          parenDepth--;
+        }
+        j++;
+      }
+
+      if (parenDepth === 0) {
+        const inner = segment.slice(i + 2, j - 1).trim();
+        if (inner.length > 0) {
+          results.push(inner);
+        }
+        i = j - 1;
+      }
+      continue;
+    }
+
+    if (ch === "`") {
+      let j = i + 1;
+      while (j < segment.length) {
+        if (segment[j] === "\\" && j + 1 < segment.length) {
+          j += 2;
+          continue;
+        }
+        if (segment[j] === "`") {
+          break;
+        }
+        j++;
+      }
+
+      if (j < segment.length && segment[j] === "`") {
+        const inner = segment.slice(i + 1, j).trim();
+        if (inner.length > 0) {
+          results.push(inner);
+        }
+        i = j;
+      }
+    }
+  }
+
+  return results;
+}
+
 function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
   let options = {};
   let depth = depthArg;
@@ -841,10 +1089,13 @@ function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
     }
   }
 
-  if (depth > 3) return null;
+  if (depth > 3) {
+    return "[SDLC Guardrail] Command nesting depth exceeded (> 3); blocked to prevent guardrail bypass.";
+  }
   let currentCwd = options.cwd || process.cwd();
   const branchResolver =
     typeof options.branchResolver === "function" ? options.branchResolver : resolveCurrentGitBranch;
+  const allowGitCommit = options.allowGitCommit === true;
 
   const segments = splitSegments(commandLine);
 
@@ -852,6 +1103,17 @@ function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
     const rawTokens = tokenizeSegment(segment);
     const { tokens, envOverrides: segEnv } = stripLeadingPrefixes(rawTokens);
     const envOverrides = options.envOverrides ? { ...options.envOverrides, ...segEnv } : segEnv;
+
+    const substitutions = extractCommandSubstitutions(segment);
+    for (const subCmd of substitutions) {
+      const subReason = evaluateCommandLine(
+        subCmd,
+        { cwd: currentCwd, branchResolver, envOverrides, allowGitCommit },
+        depth + 1
+      );
+      if (subReason) return subReason;
+    }
+
     if (tokens.length === 0) continue;
 
     const exe = normalizeExeName(tokens[0].text);
@@ -869,7 +1131,7 @@ function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
     }
 
     if (exe === "git") {
-      const reason = checkGitCommand(tokens, currentCwd, branchResolver, envOverrides);
+      const reason = checkGitCommand(tokens, currentCwd, branchResolver, envOverrides, allowGitCommit);
       if (reason) return reason;
     }
 
@@ -889,15 +1151,34 @@ function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
     }
 
     if (SHELL_EXECUTABLES.has(exe)) {
-      for (let i = 1; i < tokens.length - 1; i++) {
+      const isPowerShell = exe === "pwsh" || exe === "powershell";
+      for (let i = 1; i < tokens.length; i++) {
         const flag = tokens[i].text.toLowerCase();
-        if (flag === "-c" || flag === "-command" || flag === "/c") {
+        if (isPowerShell && isPowerShellEncodedFlag(flag)) {
+          if (i + 1 >= tokens.length) {
+            return "[SDLC Guardrail] Unreadable PowerShell -EncodedCommand payload is blocked.";
+          }
+          const decoded = decodePowerShellEncodedCommand(tokens[i + 1].text);
+          if (!decoded) {
+            return "[SDLC Guardrail] Unreadable PowerShell -EncodedCommand payload is blocked.";
+          }
           const nestedReason = evaluateCommandLine(
-            tokens[i + 1].text,
-            { cwd: currentCwd, branchResolver, envOverrides },
+            decoded,
+            { cwd: currentCwd, branchResolver, envOverrides, allowGitCommit },
             depth + 1
           );
           if (nestedReason) return nestedReason;
+          i++;
+          continue;
+        }
+        if ((flag === "-c" || flag === "-command" || flag === "/c") && i + 1 < tokens.length) {
+          const nestedReason = evaluateCommandLine(
+            tokens[i + 1].text,
+            { cwd: currentCwd, branchResolver, envOverrides, allowGitCommit },
+            depth + 1
+          );
+          if (nestedReason) return nestedReason;
+          i++;
         }
       }
     }

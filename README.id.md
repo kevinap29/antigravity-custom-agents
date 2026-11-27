@@ -35,7 +35,7 @@ chmod +x install.sh && ./install.sh
 
 ---
 
-## ✨ Fitur Utama (Upgrade v2.0 — Modular Plugin Bundle)
+## ✨ Fitur Utama (Upgrade v2.1 — Modular Plugin Bundle)
 
 - **9 Custom Agents Terstruktur:** Terdiri dari 2 Main Agent (`sdlc-team-lead` & `pr-review-fixer`) dan 7 Subagent spesialis domain.
 - **Plugin Modular `antigravity-sdlc` (`plugins/antigravity-sdlc/`):**
@@ -44,7 +44,7 @@ chmod +x install.sh && ./install.sh
   - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Hook Node.js zero-dependency yang memblokir `git push` ke `main`/`master`/`develop`, eksekusi langsung CLI DB (`sqlcmd`, `sqlite3`, `psql`, `mysql`), dan migrasi EF Core Code-First (`dotnet ef migrations` / `dotnet ef database update`). Otomatis dinonaktifkan dengan aman jika `node` belum terpasang.
 - **Plugin RTK Independen (`plugins/rtk/`):** Plugin 3rd-party penghemat token (`rtk hook antigravity`) dipisahkan agar bisa diaktifkan/update secara independen.
 - **Arsitektur SDLC v1.5+ (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
-  - **5-Lane Complexity Matrix:** `Lane 0 (docs)` langsung oleh Team Lead, `Lane 1A (micro < 30 baris)` skip file plan dengan `Model: flash`, `Lane 1B (small <= 100 baris, tanpa DB/DTO/Auth)` skip plan & ceremony dengan `Model: inherit` + `verify-gate.mjs`, dan `Lane 2/3 (standard/complex)` alur penuh Phase 0–5.
+  - **5-Lane Complexity Matrix:** `Lane 0 (docs)` langsung oleh Team Lead, `Lane 1A (micro < 30 baris)` skip file plan (edit langsung 1 file atau subagent `Model: flash`), `Lane 1B (small <= 100 baris, tanpa DB/DTO/Auth)` skip plan & ceremony dengan `Model: inherit` + `verify-gate.mjs`, dan `Lane 2/3 (standard/complex)` alur penuh Phase 0–5.
   - **Contract Freeze Gate:** Eksekusi paralel hanya diizinkan setelah kontrak DTO Phase 0 matang & lolos Ambiguity Gate, dengan batas **maksimal 2 subagent paralel**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 tetap opsional (skip untuk backend-only/minor task). Namun jika prototype dibuat (`_prototypes/<feature-slug>.html`), `ui-prototyper` menyamakan CSS/icon/chart package proyek + *Component Mapping Note*, diikuti *Prototype Approval Gate*, konversi 1:1 oleh `frontend-mobile-dev`, dan *Prototype Parity Audit* oleh `qa-code-reviewer`.
   - **Progressive Model Escalation:** Jika `qa-code-reviewer` memberi tag `[CRITICAL][ESCALATE_MODEL]` atau gagal di iterasi ke-2 pada model `flash`, Team Lead otomatis men-spawn subagent baru dengan kelas model lebih tinggi (`flash` → `inherit` → `pro`).
@@ -72,7 +72,7 @@ antigravity-custom-agents/
 │   └── qa-code-reviewer.md     # Subagent: Auditor kualitas kode, build, security & parity
 ├── plugins/                    # 2 plugin Antigravity independen
 │   ├── antigravity-sdlc/       # Bundle SDLC modular (skills, rules, PreToolUse guardrails)
-│   │   ├── plugin.json         # Metadata plugin (v2.0.0)
+│   │   ├── plugin.json         # Metadata plugin (v2.1.0)
 │   │   ├── hooks.json          # Konfigurasi hook PreToolUse (path di-resolve saat install)
 │   │   ├── hooks/
 │   │   │   └── sdlc-guardrails.mjs # Guardrail Node.js (protected branch, DB CLI, EF migrations)
@@ -122,7 +122,7 @@ antigravity-custom-agents/
 
 | Agent | Peran | Tugas Utama |
 | :--- | :--- | :--- |
-| `sdlc-team-lead` | **Main Agent** | Perencanaan terisolasi per fitur, 4-Lane Matrix, deteksi stack otomatis, Contract Freeze Gate, conditional prototype handover, dan Progressive Model Escalation. |
+| `sdlc-team-lead` | **Main Agent** | Perencanaan terisolasi per fitur, 5-Lane Matrix, deteksi stack otomatis, Contract Freeze Gate, conditional prototype handover, dan Progressive Model Escalation. |
 | `pr-review-fixer` | **Main Agent** | Single-agent hemat kuota untuk eksekusi perbaikan komentar AI Code Review / PR bot secara presisi serta membuat draft balasan markdown. |
 | `dotnet-cqrs-dev` | Subagent | Pengembangan backend C#, .NET Core / .NET 6–11, ASP.NET Core, Vertical Slice Architecture, CQRS, custom mediator, LINQ/EF Core, dan `ISqliteConnectionFactory` / Dapper. |
 | `dotnet-webforms-dev` | Subagent | Maintenance & fitur baru legacy .NET Framework 4.x dan ASP.NET WebForms (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET). |
@@ -134,7 +134,7 @@ antigravity-custom-agents/
 
 ### Daftar Plugin (2 Plugin Modular)
 
-1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.0.0):**
+1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.1.0):**
    - **Bundled Skills (`skills/`):**
      - **`dotnet-webforms-patterns`**: Pola implementasi & verifikasi statis proyek legacy .NET Framework 4.x / ASP.NET WebForms (`.csproj` non-SDK, sinkronisasi `.designer.cs`, EF6/LINQ/ADO.NET).
      - **`frontend-mobile-patterns`**: Panduan implementasi SvelteKit (Svelte 4 vs Svelte 5 runes) dan .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, target build).

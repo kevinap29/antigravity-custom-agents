@@ -1,8 +1,8 @@
 # SDLC Engineering Rules
 
 - **DB-First Mandatory:** No Migration-First/Code-First (`dotnet ef migrations`, `dotnet ef database update`), no direct DB CLI execution (`sqlcmd`, `Invoke-Sqlcmd`, `sqlite3`, `psql`, `mysql`, `sqlpackage`), and use LINQ/EF when already present (no raw SQL template strings).
-- **Git Branching & Safety:** Never push directly to `main`, `master`, or `develop`, and never run `git push --force`, `git reset --hard`, or `git clean -fd` autonomously; always work on feature branches and open a PR.
-- **UI Dropdown Component (Pragmatic KISS):** For **dynamic / API-backed / master-data** dropdowns or lists with **`> 7` options**, ALWAYS build/reuse a **custom searchable dropdown** with an internal search input and **debounced** filtering (250–300ms). For small static option sets (`<= 7` items, e.g., Status, Sort, Page Size), a native `<select>` or radio/segmented control is allowed.
+- **Git Branching & Safety:** Never push directly to `main`, `master`, or `develop`, and never run `git commit`, `git push --force`, `git reset --hard`, or `git clean -fd` autonomously; always work on feature branches and open a PR.
+- **UI Dropdown Component (Pragmatic KISS):** For **dynamic / API-backed / master-data** dropdowns or **large static lists (`> 15` options)**, ALWAYS build/reuse a **custom searchable dropdown** with an internal search input and **debounced** filtering (250–300ms) (`[CRITICAL]` in QA if violated). For **medium static lists (`8–15` options, e.g., months/years or mobile native pickers)**, a searchable dropdown is recommended (`[WARNING]` if native `<select>`). For small static option sets (`<= 7` items, e.g., Status, Sort, Page Size), a native `<select>` or radio/segmented control is allowed.
 - **Token Efficiency:** Read only task-relevant files; avoid full-repo scans unless necessary.
 - **DRY & Reuse:** Check existing helpers, validators, or queries before adding new ones.
 - **Zero Regression:** Preserve existing contracts and run relevant test suites before finishing.

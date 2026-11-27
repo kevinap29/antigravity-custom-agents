@@ -371,3 +371,151 @@ test("allows targeted rm -rf and PowerShell Remove-Item build artifact cleanups"
     );
   }
 });
+
+test("blocks autonomous git commit by default and allows with allowGitCommit option or SDLC_ALLOW_GIT_COMMIT=1", () => {
+  const prevEnv = process.env.SDLC_ALLOW_GIT_COMMIT;
+  delete process.env.SDLC_ALLOW_GIT_COMMIT;
+
+  try {
+    const blocked = evaluateCommandLine('git commit -m "test"');
+    assert.ok(blocked, "Expected git commit to be blocked by default");
+    assert.equal(
+      blocked,
+      "[SDLC Guardrail] Autonomous 'git commit' is blocked. Require explicit user confirmation (or set SDLC_ALLOW_GIT_COMMIT=1 for intentional manual override)."
+    );
+
+    const nestedBlocked = evaluateCommandLine('pwsh -Command "git commit -m test"');
+    assert.ok(nestedBlocked, "Expected nested git commit to be blocked by default");
+
+    assert.equal(
+      evaluateCommandLine('git commit -m "test"', { allowGitCommit: true }),
+      null,
+      "Expected git commit to be allowed with options.allowGitCommit = true"
+    );
+
+    assert.equal(
+      evaluateCommandLine('bash -c "git commit -m test"', { allowGitCommit: true }),
+      null,
+      "Expected nested git commit to be allowed when options.allowGitCommit = true"
+    );
+
+    process.env.SDLC_ALLOW_GIT_COMMIT = "1";
+    assert.equal(
+      evaluateCommandLine('git commit -m "test"'),
+      null,
+      "Expected git commit to be allowed when SDLC_ALLOW_GIT_COMMIT=1"
+    );
+  } finally {
+    if (prevEnv === undefined) {
+      delete process.env.SDLC_ALLOW_GIT_COMMIT;
+    } else {
+      process.env.SDLC_ALLOW_GIT_COMMIT = prevEnv;
+    }
+  }
+});
+
+test("fails closed when command nesting depth exceeds 3", () => {
+  const directDepth4 = evaluateCommandLine("git status", {}, 4);
+  assert.equal(
+    directDepth4,
+    "[SDLC Guardrail] Command nesting depth exceeded (> 3); blocked to prevent guardrail bypass."
+  );
+
+  const nestedSubDepth = evaluateCommandLine("echo $(echo $(echo $(echo $(git status))))");
+  assert.equal(
+    nestedSubDepth,
+    "[SDLC Guardrail] Command nesting depth exceeded (> 3); blocked to prevent guardrail bypass."
+  );
+
+  // Depth 3 should still be evaluated normally and allowed if safe
+  assert.equal(evaluateCommandLine("git status", {}, 3), null);
+});
+
+test("inspects PowerShell -EncodedCommand / -enc / -ec / -e payloads and fails closed on invalid base64", () => {
+  const encodePs = (cmd) => Buffer.from(cmd, "utf16le").toString("base64");
+
+  const resetPayload = encodePs("git reset --hard");
+  const statusPayload = encodePs("git status");
+
+  const blockedFull = evaluateCommandLine(`pwsh -EncodedCommand ${resetPayload}`);
+  assert.ok(blockedFull, "Expected encoded git reset --hard to be blocked");
+  assert.match(blockedFull, /git reset --hard/);
+
+  const blockedShort = evaluateCommandLine(`powershell -ec ${resetPayload}`);
+  assert.ok(blockedShort, "Expected powershell -ec git reset --hard to be blocked");
+  assert.match(blockedShort, /git reset --hard/);
+
+  for (const prefixFlag of ["-en", "-enco", "-encod", "-encode", "-encoded"]) {
+    const blockedPrefix = evaluateCommandLine(`pwsh ${prefixFlag} ${resetPayload}`);
+    assert.ok(blockedPrefix, `Expected pwsh ${prefixFlag} git reset --hard to be blocked`);
+    assert.match(blockedPrefix, /git reset --hard/);
+  }
+
+  // bash -e (errexit) must not be treated as PowerShell -EncodedCommand
+  assert.equal(evaluateCommandLine('bash -e -c "git status"'), null);
+
+  const blockedE = evaluateCommandLine(`pwsh -e ${encodePs("sqlite3 app.db")}`);
+  assert.ok(blockedE, "Expected pwsh -e sqlite3 to be blocked");
+  assert.match(blockedE, /DB-first policy/i);
+
+  assert.equal(
+    evaluateCommandLine(`pwsh -enc ${statusPayload}`),
+    null,
+    "Expected pwsh -enc 'git status' to be allowed"
+  );
+
+  const malformedCases = [
+    "pwsh -EncodedCommand not-valid-base64!!!",
+    "pwsh -enc abc",
+    "pwsh -ec ====",
+    "pwsh -e YQ==",
+    "pwsh -EncodedCommand",
+  ];
+
+  for (const cmd of malformedCases) {
+    const reason = evaluateCommandLine(cmd);
+    assert.equal(
+      reason,
+      "[SDLC Guardrail] Unreadable PowerShell -EncodedCommand payload is blocked.",
+      `Expected malformed encoded command to fail closed: ${cmd}`
+    );
+  }
+});
+
+test("inspects command substitutions $() and backticks while respecting single quotes and normal variables", () => {
+  const blockedCommands = [
+    "echo $(sqlite3 app.db)",
+    'echo "$(git reset --hard)"',
+    "echo `git commit -m x`",
+    'echo "`sqlite3 app.db`"',
+    "echo $(echo $(git reset --hard))",
+    "X=$(sqlite3)",
+    "X=`psql`",
+    "echo $(git status; git reset --hard)",
+    "echo `git status && git commit -m x`",
+    'echo "$(git status || sqlite3 app.db)"',
+  ];
+
+  for (const cmd of blockedCommands) {
+    const reason = evaluateCommandLine(cmd, { branchResolver: featureBranchResolver });
+    assert.ok(reason, `Expected command substitution to be blocked: ${cmd}`);
+    assert.match(reason, /\[SDLC Guardrail\]/);
+  }
+
+  const allowedCommands = [
+    "echo '$(sqlite3 app.db)'",
+    "echo '`git reset --hard`'",
+    'echo "hello"',
+    "echo $env:PATH",
+    "echo $foo",
+    "echo $(git status)",
+  ];
+
+  for (const cmd of allowedCommands) {
+    assert.equal(
+      evaluateCommandLine(cmd, { branchResolver: featureBranchResolver }),
+      null,
+      `Expected safe command to be allowed: ${cmd}`
+    );
+  }
+});

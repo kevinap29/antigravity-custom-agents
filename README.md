@@ -35,7 +35,7 @@ chmod +x install.sh && ./install.sh
 
 ---
 
-## ✨ Key Features (v2.0 Modular Plugin Bundle)
+## ✨ Key Features (v2.1 Modular Plugin Bundle)
 
 - **9 Structured Custom Agents:** 2 Main Agents (`sdlc-team-lead` & `pr-review-fixer`) and 7 domain-specialist Subagents.
 - **Modular `antigravity-sdlc` Plugin (`plugins/antigravity-sdlc/`):**
@@ -44,7 +44,7 @@ chmod +x install.sh && ./install.sh
   - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Zero-dependency Node.js hook that blocks `git push` to `main`/`master`/`develop`, direct DB CLIs (`sqlcmd`, `sqlite3`, `psql`, `mysql`), and EF Core Code-First migrations (`dotnet ef migrations` / `dotnet ef database update`). Auto-disables safely if `node` is not installed.
 - **Independent RTK Plugin (`plugins/rtk/`):** Standalone 3rd-party token optimizer hook (`rtk hook antigravity`) kept separate so it can be toggled or updated independently.
 - **SDLC v1.5+ Architecture (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
-  - **5-Lane Complexity Matrix:** `Lane 0 (docs)` handled directly by Team Lead, `Lane 1A (micro < 30 lines)` skips plan file using `Model: flash`, `Lane 1B (small <= 100 lines, no DB/DTO/Auth)` skips plan & ceremony using `Model: inherit` + `verify-gate.mjs`, and `Lane 2/3 (standard/complex)` runs full Phase 0–5.
+  - **5-Lane Complexity Matrix:** `Lane 0 (docs)` handled directly by Team Lead, `Lane 1A (micro < 30 lines)` skips plan file (direct single-file edit or `Model: flash` subagent), `Lane 1B (small <= 100 lines, no DB/DTO/Auth)` skips plan & ceremony using `Model: inherit` + `verify-gate.mjs`, and `Lane 2/3 (standard/complex)` runs full Phase 0–5.
   - **Contract Freeze Gate:** Parallel execution is only allowed after Phase 0 DTO contracts are finalized & pass the Ambiguity Gate, capped at **max 2 parallel subagents**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 remains optional (skipped for backend-only/minor tasks). When a prototype is created (`_prototypes/<feature-slug>.html`), `ui-prototyper` aligns with the project's CSS/icon/chart packages + *Component Mapping Note*, followed by a *Prototype Approval Gate*, 1:1 conversion by `frontend-mobile-dev`, and *Prototype Parity Audit* by `qa-code-reviewer`.
   - **Progressive Model Escalation:** If `qa-code-reviewer` emits `[CRITICAL][ESCALATE_MODEL]` or a `flash` subagent fails on iteration 2+, Team Lead spawns a new subagent with a higher model tier (`flash` → `inherit` → `pro`).
@@ -72,7 +72,7 @@ antigravity-custom-agents/
 │   └── qa-code-reviewer.md     # Subagent: Code quality, build, security & parity auditor
 ├── plugins/                    # 2 independent Antigravity plugins
 │   ├── antigravity-sdlc/       # Modular SDLC bundle (skills, rules, PreToolUse guardrails)
-│   │   ├── plugin.json         # Plugin metadata (v2.0.0)
+│   │   ├── plugin.json         # Plugin metadata (v2.1.0)
 │   │   ├── hooks.json          # PreToolUse guardrail hook config (auto-resolved on install)
 │   │   ├── hooks/
 │   │   │   └── sdlc-guardrails.mjs # Node.js guardrail (protected branches, DB CLI, EF migrations)
@@ -122,7 +122,7 @@ antigravity-custom-agents/
 
 | Agent | Role | Primary Responsibility |
 | :--- | :--- | :--- |
-| `sdlc-team-lead` | **Main Agent** | Isolated per-feature planning, 4-Lane Matrix, auto stack detection, Contract Freeze Gate, conditional prototype handover, and Progressive Model Escalation. |
+| `sdlc-team-lead` | **Main Agent** | Isolated per-feature planning, 5-Lane Matrix, auto stack detection, Contract Freeze Gate, conditional prototype handover, and Progressive Model Escalation. |
 | `pr-review-fixer` | **Main Agent** | Quota-efficient single-agent executor for PR / AI code review comments with minimal-diff fixes and copy-ready markdown replies. |
 | `dotnet-cqrs-dev` | Subagent | C#, .NET Core / .NET 6–11, ASP.NET Core, Vertical Slice Architecture, CQRS, custom mediator, LINQ/EF Core, and `ISqliteConnectionFactory` / Dapper. |
 | `dotnet-webforms-dev` | Subagent | Zero-regression maintenance & features for legacy .NET Framework 4.x and ASP.NET WebForms (`.aspx`, `.ascx`, `.aspx.cs`, `.designer.cs`, `Web.config`, EF6/ADO.NET). |
@@ -134,7 +134,7 @@ antigravity-custom-agents/
 
 ### Included Plugins (2 Modular Plugins)
 
-1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.0.0):**
+1. **`plugins/antigravity-sdlc/` (SDLC Bundle — v2.1.0):**
    - **Bundled Skills (`skills/`):**
      - **`dotnet-webforms-patterns`**: Legacy .NET Framework 4.x / ASP.NET WebForms patterns & static verification (non-SDK `.csproj`, `.designer.cs` sync, EF6/LINQ/ADO.NET).
      - **`frontend-mobile-patterns`**: SvelteKit (Svelte 4 vs Svelte 5 runes) and .NET MAUI Hybrid Blazor (lifecycle, `BlazorWebView`, JS Interop, Windows target builds).

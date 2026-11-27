@@ -1,6 +1,6 @@
 {
   "name": "antigravity-sdlc",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Antigravity SDLC bundle providing deterministic command guardrails, engineering rules, and domain skills",
   "skills": [
     "./skills"

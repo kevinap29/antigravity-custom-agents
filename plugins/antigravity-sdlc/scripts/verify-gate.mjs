@@ -232,12 +232,17 @@ function findMsBuild() {
 function parseArgs(argv) {
   let targetDir = ".";
   let skipSecurity = false;
+  let strict = false;
   let positionalUsed = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--skip-security") {
       skipSecurity = true;
+      continue;
+    }
+    if (arg === "--strict") {
+      strict = true;
       continue;
     }
     if (arg === "--target-dir") {
@@ -256,23 +261,38 @@ function parseArgs(argv) {
     }
   }
 
-  return { targetDir, skipSecurity };
+  return { targetDir, skipSecurity, strict };
 }
 
 function runVerifyGate(options = {}) {
   const targetDir = options.targetDir || ".";
   const skipSecurity = Boolean(options.skipSecurity);
+  const strict = Boolean(options.strict);
   const resolvedDir = path.resolve(targetDir);
 
   if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
     console.error(`[FAIL] Target directory does not exist or is not a directory: ${resolvedDir}`);
-    return { failed: true, exitCode: 1, summary: [`[FAIL] Invalid target directory: ${resolvedDir}`] };
+    return {
+      failed: true,
+      exitCode: 1,
+      summary: [`[FAIL] Invalid target directory: ${resolvedDir}`],
+      executedBuildTestSteps: 0,
+      executedSecuritySteps: 0,
+    };
   }
 
   let failed = false;
+  let executedBuildTestSteps = 0;
+  let executedSecuritySteps = 0;
   const summary = [];
 
-  function runStep(name, command, args, cwd, extraOpts = {}) {
+  function runStep(name, command, args, cwd, extraOpts = {}, category = "build") {
+    if (category === "build") {
+      executedBuildTestSteps++;
+    } else if (category === "security") {
+      executedSecuritySteps++;
+    }
+
     console.log(`\n[GATE] Running: ${name} ...`);
     const result = spawnSync(command, args, {
       cwd,
@@ -440,13 +460,27 @@ function runVerifyGate(options = {}) {
   // 4. Static Security Scanners (unless --skip-security)
   if (!skipSecurity) {
     if (isCommandAvailable("gitleaks")) {
-      runStep("Gitleaks (Secrets Scan)", "gitleaks", ["detect", "--source", ".", "--no-git", "--redact"], resolvedDir);
+      runStep(
+        "Gitleaks (Secrets Scan)",
+        "gitleaks",
+        ["detect", "--source", ".", "--no-git", "--redact"],
+        resolvedDir,
+        {},
+        "security"
+      );
     } else {
       summary.push("[SKIP] Gitleaks (not installed)");
     }
 
     if (isCommandAvailable("semgrep")) {
-      runStep("Semgrep (SAST Scan)", "semgrep", ["scan", "--config", "auto", "--error", "--quiet"], resolvedDir);
+      runStep(
+        "Semgrep (SAST Scan)",
+        "semgrep",
+        ["scan", "--config", "auto", "--error", "--quiet"],
+        resolvedDir,
+        {},
+        "security"
+      );
     } else {
       summary.push("[SKIP] Semgrep (not installed)");
     }
@@ -456,11 +490,28 @@ function runVerifyGate(options = {}) {
         "Trivy (Dependency Scan)",
         "trivy",
         ["fs", "--severity", "HIGH,CRITICAL", "--exit-code", "1", "--quiet", "."],
-        resolvedDir
+        resolvedDir,
+        {},
+        "security"
       );
     } else {
       summary.push("[SKIP] Trivy (not installed)");
     }
+  }
+
+  if (executedBuildTestSteps === 0) {
+    summary.push(
+      "[WARN] No build/test stack detected (.NET, Node, Python) — 0 build/test checks executed. Run stack-specific verification manually."
+    );
+    if (strict) {
+      failed = true;
+    }
+  }
+
+  if (!skipSecurity && executedSecuritySteps === 0) {
+    summary.push(
+      "[WARN] No static security scanners (gitleaks, semgrep, trivy) installed — 0 security scans executed."
+    );
   }
 
   console.log("\n========== VERIFY GATE SUMMARY ==========");
@@ -469,7 +520,13 @@ function runVerifyGate(options = {}) {
   }
   console.log("=========================================");
 
-  return { failed, exitCode: failed ? 1 : 0, summary };
+  return {
+    failed,
+    exitCode: failed ? 1 : 0,
+    summary,
+    executedBuildTestSteps,
+    executedSecuritySteps,
+  };
 }
 
 function main() {

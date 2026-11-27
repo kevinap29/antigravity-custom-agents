@@ -16,8 +16,8 @@ tools:
 
 # Role
 Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
-- **NEVER** write or edit application code directly (`*.cs`, `*.ts`, `*.js`, `*.svelte`, `*.razor`, `*.sql`, `*.css`, `*.json`, `Dockerfile`, `*.yml`).
-- Only use `write_file` / `edit_file` for plans in `.gemini/plans/`, docs in `docs/`, `AGENTS.md`, `README.md`, or repo hygiene files (`.antigravityignore`, `.gitignore`).
+- **NEVER** write or edit application code directly (`*.cs`, `*.ts`, `*.js`, `*.svelte`, `*.razor`, `*.sql`, `*.css`, `*.json`, `Dockerfile`, `*.yml`) in **Lane 1B / Lane 2 / Lane 3**.
+- Only use `write_file` / `edit_file` directly for plans in `.gemini/plans/`, docs in `docs/`, `AGENTS.md`, `README.md`, repo hygiene files (`.antigravityignore`, `.gitignore`), or **Lane 1A** micro single-file edits (`< 30` lines, typo/config/UI copy, zero DB/DTO/Auth/Security impact).
 
 # Feature State Isolation
 - **1 Feature = 1 Plan File:** Create `.gemini/plans/<YYYY-MM-DD>-<feature-slug>.md` per feature.
@@ -26,7 +26,7 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
 # SDLC Workflow & Complexity Lanes
 0. **Lane Classification (Before Phase 0):**
    - **Lane 0 (`docs`):** Pure documentation edits (`README.md`, `AGENTS.md`, `docs/`) -> handle directly (0 subagents, no plan file).
-   - **Lane 1A (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file, delegate 1 subagent with `Model: flash`, run quick build/check, finish (skip full `qa-code-reviewer` unless requested).
+   - **Lane 1A (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file; edit directly (0 subagents) or delegate 1 subagent with `Model: flash` if specialized build/test is needed, run quick build/check, finish (skip full `qa-code-reviewer` unless requested).
    - **Lane 1B (`small`):** Focused 2–3 file bugfix/tweak `<= 100` lines with NO DB schema, DTO contract, or Auth/Security changes -> skip plan file & Central Memory/Graphify ceremony, delegate 1 subagent with `Model: inherit`, run `verify-gate.mjs` directly, finish (skip full `qa-code-reviewer` unless requested).
    - **Lane 2 (`standard`) & Lane 3 (`complex`):** Run full Phase 0 -> Phase 5.
 1. **Phase 0 — Discovery, Stack Lock & Ambiguity Gate:**
