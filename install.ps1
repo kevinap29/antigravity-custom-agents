@@ -3,7 +3,7 @@
     Modular Installer Antigravity Custom Agents, SDLC Plugin, Deterministic Gate, dan Add-ons (Windows).
 .DESCRIPTION
     Menjalankan OS/Env Preflight Check, memasang Core bundle (9 agents, plugin antigravity-sdlc
-    [3 skills, engineering rules, guardrail hook], RTK plugin, plugins/antigravity-sdlc/scripts/verify-gate.ps1, GEMINI.md),
+    [3 skills, engineering rules, guardrail hook], RTK plugin, plugins/antigravity-sdlc/scripts/verify-gate.mjs & verify-gate.ps1, templates/GEMINI.md),
     serta mendukung 3 modular add-on opsional:
     Add-on A (Security Scanners: gitleaks & trivy), Add-on B (Central Memory MCP / Qdrant
     dengan mode Local, Localhost, atau Remote), dan Add-on C (Qdrant SSH Tunnel untuk Windows).
@@ -55,14 +55,15 @@ $sourceAgents = Join-Path $scriptRoot "agents"
 $sourcePluginsSdlc = Join-Path $scriptRoot "plugins\antigravity-sdlc"
 $sourcePluginsRtk = Join-Path $scriptRoot "plugins\rtk"
 $sourceScripts = Join-Path $scriptRoot "scripts"
-$sourceVerifyGate = Join-Path $sourcePluginsSdlc "scripts\verify-gate.ps1"
+$sourceVerifyGateMjs = Join-Path $sourcePluginsSdlc "scripts\verify-gate.mjs"
+$sourceVerifyGatePs1 = Join-Path $sourcePluginsSdlc "scripts\verify-gate.ps1"
 $sourceTunnelPs1 = Join-Path $sourceScripts "qdrant-tunnel.ps1"
 $sourceTunnelVbs = Join-Path $sourceScripts "qdrant-tunnel-hidden.vbs"
 $sourceMcp = Join-Path $scriptRoot "mcp"
 $sourceMemory = Join-Path $scriptRoot "memory"
-$sourceGeminiMd = Join-Path $scriptRoot "GEMINI.md"
+$sourceGeminiMd = Join-Path $scriptRoot "templates\GEMINI.md"
 
-foreach ($requiredPath in @($sourceAgents, $sourcePluginsSdlc, $sourcePluginsRtk, $sourceVerifyGate, $sourceGeminiMd)) {
+foreach ($requiredPath in @($sourceAgents, $sourcePluginsSdlc, $sourcePluginsRtk, $sourceVerifyGateMjs, $sourceVerifyGatePs1, $sourceGeminiMd)) {
     if (-not (Test-Path $requiredPath)) {
         throw "Aset Core bundle tidak ditemukan di: $requiredPath"
     }
@@ -91,7 +92,14 @@ function Find-Python3Command {
     return $null
 }
 
-$geminiDir = Join-Path $HOME ".gemini"
+$resolvedHome = if (-not [string]::IsNullOrWhiteSpace($env:ANTIGRAVITY_HOME)) {
+    $env:ANTIGRAVITY_HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    $HOME
+} else {
+    $env:USERPROFILE
+}
+$geminiDir = Join-Path $resolvedHome ".gemini"
 $targetConfigAgents = Join-Path $geminiDir "config\agents"
 $targetConfigSkills = Join-Path $geminiDir "config\skills"
 $targetConfigPluginsSdlc = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
@@ -316,10 +324,11 @@ if ($null -ne $rtkCmd) {
     }
 }
 
-# 4. Core Script: verify-gate.ps1
-Write-Host "`n[CORE 4/5] Menginstal Deterministic Gate Script (verify-gate.ps1)..." -ForegroundColor Yellow
-Copy-Item -LiteralPath $sourceVerifyGate -Destination (Join-Path $targetScripts "verify-gate.ps1") -Force
-Write-Host "  [OK] verify-gate.ps1 disalin ke $targetScripts\verify-gate.ps1." -ForegroundColor Green
+# 4. Core Scripts: verify-gate.mjs & verify-gate.ps1
+Write-Host "`n[CORE 4/5] Menginstal Deterministic Gate Scripts (verify-gate.mjs & verify-gate.ps1)..." -ForegroundColor Yellow
+Copy-Item -LiteralPath $sourceVerifyGateMjs -Destination (Join-Path $targetScripts "verify-gate.mjs") -Force
+Copy-Item -LiteralPath $sourceVerifyGatePs1 -Destination (Join-Path $targetScripts "verify-gate.ps1") -Force
+Write-Host "  [OK] verify-gate.mjs & verify-gate.ps1 disalin ke $targetScripts." -ForegroundColor Green
 
 # 5. GEMINI.md
 Write-Host "`n[CORE 5/5] Mengatur Global Profile & Guardrails (GEMINI.md)..." -ForegroundColor Yellow
@@ -675,7 +684,7 @@ Write-Host "  - Agents (Config)      : $targetConfigAgents" -ForegroundColor Gre
 Write-Host "  - Agents (Antigravity) : $targetAntigravityAgents" -ForegroundColor Green
 Write-Host "  - Plugin (SDLC)        : $targetConfigPluginsSdlc" -ForegroundColor Green
 Write-Host "  - Plugin (RTK)         : $targetConfigPluginsRtk" -ForegroundColor Green
-Write-Host "  - Deterministic Gate   : $targetScripts\verify-gate.ps1" -ForegroundColor Green
+Write-Host "  - Deterministic Gate   : $targetScripts\verify-gate.mjs & verify-gate.ps1" -ForegroundColor Green
 Write-Host "  - Global Rules         : $targetGeminiMd" -ForegroundColor Green
 Write-Host "  - Add-ons Profile      : $addonsProfilePath (responseLanguage=$resolvedResponseLanguage, centralMemory=$enableMemory, qdrantMode=$resolvedQdrantMode, sshTunnel=$enableTunnel)" -ForegroundColor Green
 if ($enableMemory) {

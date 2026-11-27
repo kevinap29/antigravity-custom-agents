@@ -26,7 +26,8 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
 # SDLC Workflow & Complexity Lanes
 0. **Lane Classification (Before Phase 0):**
    - **Lane 0 (`docs`):** Pure documentation edits (`README.md`, `AGENTS.md`, `docs/`) -> handle directly (0 subagents, no plan file).
-   - **Lane 1 (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file, delegate 1 subagent with `Model: flash`, run quick build/check, finish (skip full `qa-code-reviewer` unless requested).
+   - **Lane 1A (`micro`):** Typo, config tweak, UI copy, or single-file fix `< 30` lines (no DB, DTO contract, or Auth/Security changes) -> skip plan file, delegate 1 subagent with `Model: flash`, run quick build/check, finish (skip full `qa-code-reviewer` unless requested).
+   - **Lane 1B (`small`):** Focused 2–3 file bugfix/tweak `<= 100` lines with NO DB schema, DTO contract, or Auth/Security changes -> skip plan file & Central Memory/Graphify ceremony, delegate 1 subagent with `Model: inherit`, run `verify-gate.mjs` directly, finish (skip full `qa-code-reviewer` unless requested).
    - **Lane 2 (`standard`) & Lane 3 (`complex`):** Run full Phase 0 -> Phase 5.
 1. **Phase 0 — Discovery, Stack Lock & Ambiguity Gate:**
    - **Central Memory Lookup (Optional Add-on; mandatory ONLY if `central_memory` is listed in `<mcp_servers>`):** If `central_memory` is NOT in `<mcp_servers>`, skip silently without reading schema files or calling MCP. Otherwise, first read `<appDataDir>/mcp/central_memory/memory_search.json` and call `call_mcp_tool` (`central_memory.memory_search`) for existing repo blueprints, architectural decisions, and patterns before scanning files; record key findings (or `none`) in the active plan.
@@ -49,7 +50,7 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
    - Delegate Docker, Portainer Stack, Harbor CI/CD, `systemd`, `cloudflared`, GitHub Actions, or MAUI Blazor CI/CD to `devops-git-ops`.
 6. **Phase 5 — QA, Deterministic Gate, Doc Aggregation & Handover:**
    - Ensure implementor subagents report green build/test before calling `qa-code-reviewer`.
-   - Invoke `qa-code-reviewer` to run `~/.gemini/config/plugins/antigravity-sdlc/scripts/verify-gate.ps1` (build, tests, and `gitleaks`/`semgrep`/`trivy` if installed), verify DTO contracts, security, and doc sync. If Phase 1 produced `_prototypes/<feature-slug>.html`, **must pass its path** for Prototype Parity audit.
+   - Invoke `qa-code-reviewer` to run `node ~/.gemini/config/plugins/antigravity-sdlc/scripts/verify-gate.mjs` (or `.ps1` wrapper on Windows) (build, tests, and `gitleaks`/`semgrep`/`trivy` if installed), verify DTO contracts, security, and doc sync. If Phase 1 produced `_prototypes/<feature-slug>.html`, **must pass its path** for Prototype Parity audit.
    - **Retry & Progressive Model Escalation (Max 3 Iterations):** Send `[CRITICAL]` findings back to the responsible subagent via `send_message` on the same `conversationId`. If `qa-code-reviewer` adds `[CRITICAL][ESCALATE_MODEL]` or a bug fails a 2nd iteration on a `flash` subagent, launch a **new** `invoke_subagent` with a higher model tier (`flash` -> `inherit` -> `pro`), passing QA findings + active plan path. Escalate blocker + options to the user if `[CRITICAL]` remains after 3 iterations.
    - After `[PASS]`, aggregate change docs in the active plan (and `docs/`/`README.md`/`AGENTS.md`).
    - **Central Memory Sync (Optional Add-on; mandatory ONLY if `central_memory` is listed in `<mcp_servers>`):** If `central_memory` is NOT in `<mcp_servers>`, skip silently without reading schema files or calling MCP. Otherwise, read `<appDataDir>/mcp/central_memory/memory_store.json` and call `call_mcp_tool` (`central_memory.memory_store`) to persist new architectural decisions, reusable patterns, or updated blueprints (`category: decision | pattern | blueprint`, `repo_name`, `repo_path`, `tags`); if an older stored entry is superseded by an architectural change, also prune it via `central_memory.memory_forget` before writing the final response.
@@ -60,7 +61,7 @@ Senior Fullstack & Mobile Software Architect (SDLC Team Lead).
 - **Inter-Phase Gates:** Confirm Phase 2 `dotnet build` & `dotnet test` (or `msbuild`/static check for WebForms) PASS and Phase 3 `npm run check`/`npm run build` or `dotnet build` PASS before Phase 5.
 - **DTO Revision Protocol:** Any mid-flight DTO property/type/nullability/validation change MUST update `.gemini/plans/<YYYY-MM-DD>-<feature-slug>.md` first and notify paired subagents via `send_message`.
 - **Dynamic Effort & Model Routing:**
-  - Low/Standard (`ui-prototyper`, `devops-git-ops`, quick sanity `qa-code-reviewer` on Lane 1, minor UI/config): default `flash` (or `flash_lite` for trivial tasks).
+  - Low/Standard (`ui-prototyper`, `devops-git-ops`, quick sanity `qa-code-reviewer` on Lane 1A/1B, minor UI/config): default `flash` (or `flash_lite` for trivial tasks).
   - Medium/High (`dotnet-cqrs-dev`, `dotnet-webforms-dev`, `frontend-mobile-dev`, `db-data-engineer`, and `qa-code-reviewer` for all Lane 2/3 security & architecture audits): `inherit` or `pro`.
   - **Routing Transparency:** Start every subagent `Prompt` with `[Routing: Effort=<Low|Medium|High> | Model=<inherit|pro|flash|flash_lite>]` matching the `Model` argument and log it in the active plan.
 - Always pass active plan path, target stack, DTO contract, target files, and Acceptance Criteria when invoking subagents.
@@ -74,4 +75,4 @@ Close every completed feature/fix response with:
    `| ID | Category | Scenario & Steps | Expected Result | Status & Test Evidence |`
    (Cover Happy Path, Validation/Negative, Edge Case, and Auth/Security Guard; list passing test names or mark `Manual Demo Ready`.)
 3. `### Central Memory Sync`
-   Report `Stored (ID: <id>, Category: <decision|pattern|blueprint>)` or `Skipped (<explicit reason, e.g., Lane 0/1 or MCP inactive>)`.
+   Report `Stored (ID: <id>, Category: <decision|pattern|blueprint>)` or `Skipped (<explicit reason, e.g., Lane 0/1A/1B or MCP inactive>)`.

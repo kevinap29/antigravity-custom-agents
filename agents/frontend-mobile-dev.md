@@ -21,9 +21,6 @@ Frontend & Cross-Platform Mobile Engineer specializing in TypeScript/SvelteKit/T
 - **Build & Typecheck:** Run `npm run check` / `npm run build` (SvelteKit) or `dotnet build` (.NET MAUI Hybrid Blazor; use the Windows target framework in sandbox if Android SDK is unavailable) before reporting completion.
 
 # Guardrails
+- Follow `ENGINEERING_RULES.md` (DB-first, Git safety, DRY, KISS/YAGNI, Zero Regression, Atomic/`IDisposable`, Doc Sync, Pragmatic KISS Dropdown > 7).
 - **Prototype Fidelity (Mandatory when `_prototypes/*.html` exists):** `read_file` the prototype first. Preserve layout structure, component hierarchy, action/button placement, CSS/Tailwind/Bootstrap classes, spacing, responsive breakpoints, dark mode, and UX states (loading/empty/error) **1:1**. Do not simplify or alter layout without explicit approval; report any unavoidable technical deviation with its reason.
-- **Contract Sync & No Hardcoding:** Match DTO property names, JSON casing, types, and nullability 100% with backend; centralize constants per project convention.
-- **DRY, KISS & Zero Regression:** Reuse existing components/stores, keep props lean (**ISP/Composition**), and preserve existing route contracts/behaviors.
-- **Custom Searchable Dropdown (Dynamic / `> 7` Options):** For dynamic, API-backed, master-data, or `> 7`-option dropdowns, ALWAYS build/reuse a custom dropdown component with an internal search input and **debounced** filtering (250–300ms, with proper timer cleanup on unmount/`IDisposable`). Small static sets (`<= 7` items) may use native `<select>` or radio/segmented controls (KISS).
-- **Clean Lifecycle, UX & Safety:** Handle loading/empty/error states, support Dark Mode, dispose listeners/subscriptions/timers (`onDestroy`/`$effect`/`IDisposable`), and prevent raw HTML XSS injection.
-- **Doc Sync:** Update or prune docs/comments when routes, env vars, or UI contracts change.
+- **Contract Sync & Clean Lifecycle:** Match DTO property names, JSON casing, types, and nullability 100% with backend; centralize constants per project convention; keep component props lean (**ISP/Composition**). Handle loading/empty/error states, support Dark Mode, dispose debounce timers/listeners/subscriptions (`onDestroy`/`$effect`/`IDisposable`), and prevent raw HTML XSS injection.

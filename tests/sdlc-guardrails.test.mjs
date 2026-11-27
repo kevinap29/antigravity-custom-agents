@@ -216,3 +216,158 @@ test("extractCommand and extractCwd handle standard hook payload shapes", () => 
   assert.equal(extractCwd({ tool_info: { cwd: "/repo4" } }), "/repo4");
   assert.equal(extractCwd({}), undefined);
 });
+
+test("blocks destructive git checkout and git restore worktree discards", () => {
+  const blockedCommands = [
+    "git checkout -- .",
+    "git checkout .",
+    "git checkout -- ./",
+    "git checkout -- :/",
+    "git checkout HEAD -- .",
+    "git restore .",
+    "git restore -- .",
+    "git restore -- :/",
+    "git restore --worktree .",
+    "git restore -W .",
+    "git restore --staged --worktree .",
+    "git restore -SW .",
+    'bash -c "git checkout -- ."',
+    'pwsh -Command "git restore ."',
+    "rtk git checkout -- .",
+  ];
+
+  for (const cmd of blockedCommands) {
+    const reason = evaluateCommandLine(cmd, { branchResolver: featureBranchResolver });
+    assert.ok(reason, `Expected destructive checkout/restore to be blocked: ${cmd}`);
+    assert.match(reason, /\[SDLC Guardrail\]/);
+  }
+});
+
+test("allows safe git checkout and git restore operations", () => {
+  const allowedCommands = [
+    "git checkout -b feat/x",
+    "git checkout main",
+    "git checkout -- path/to/file.cs",
+    "git checkout HEAD -- src/App.svelte",
+    "git restore --staged .",
+    "git restore -S .",
+    "git restore --staged file.txt",
+    "git restore file.txt",
+    "git restore --worktree src/index.ts",
+    'echo "git checkout -- ."',
+  ];
+
+  for (const cmd of allowedCommands) {
+    assert.equal(
+      evaluateCommandLine(cmd, { branchResolver: featureBranchResolver }),
+      null,
+      `Expected safe checkout/restore to be allowed: ${cmd}`
+    );
+  }
+});
+
+test("blocks force-deleting protected branches and git stash clear, allows feature branch deletes", () => {
+  const blockedCommands = [
+    "git branch -D main",
+    "git branch -D master",
+    "git branch -D develop",
+    "git branch -d -f main",
+    "git branch -df master",
+    "git branch --delete --force develop",
+    "git branch -D feat/x main",
+    "git stash clear",
+    "rtk git stash clear",
+    'sh -c "git branch -D main"',
+    'pwsh -Command "git stash clear"',
+  ];
+
+  for (const cmd of blockedCommands) {
+    const reason = evaluateCommandLine(cmd, { branchResolver: featureBranchResolver });
+    assert.ok(reason, `Expected destructive branch/stash command to be blocked: ${cmd}`);
+    assert.match(reason, /\[SDLC Guardrail\]/);
+  }
+
+  const allowedCommands = [
+    "git branch -d feature/x",
+    "git branch -D feature/x",
+    "git branch -a",
+    "git stash",
+    "git stash push -m 'wip'",
+    "git stash pop",
+    "git stash list",
+  ];
+
+  for (const cmd of allowedCommands) {
+    assert.equal(
+      evaluateCommandLine(cmd, { branchResolver: featureBranchResolver }),
+      null,
+      `Expected safe branch/stash command to be allowed: ${cmd}`
+    );
+  }
+});
+
+test("blocks destructive rm -rf and PowerShell recursive force wipes on dangerous paths", () => {
+  const blockedCommands = [
+    "rm -rf .",
+    "rm -fr ..",
+    "rm -r -f ./",
+    "rm --recursive --force /",
+    "rm -rf ~",
+    "rm -rf ~/",
+    "rm -rf *",
+    "rm -rf /*",
+    "rm -rf ./*",
+    "rm -rf C:\\",
+    "rm -rf C:/",
+    "rm -rf D:\\",
+    "sudo rm -rf /",
+    'bash -c "rm -rf ."',
+    "Remove-Item -Recurse -Force .",
+    "Remove-Item -r -f ..",
+    "Remove-Item -rec -fo ./",
+    "ri -Recurse -Force .\\",
+    "del -Recurse -Force *",
+    "erase -Recurse -Force /*",
+    "rd -Recurse -Force C:\\",
+    "rmdir -Recurse -Force ~",
+    "Remove-Item -Path . -Recurse -Force",
+    "Remove-Item -Path:. -Recurse -Force",
+    "Remove-Item -LiteralPath C:/ -Recurse -Force",
+    "Remove-Item -LiteralPath:C:/ -Recurse -Force",
+    "rm -Recurse -Force .",
+    "rm -Recurse -Force C:\\",
+    "Remove-Item -Recurse -Force bin,.",
+    'pwsh -Command "Remove-Item -Recurse -Force ."',
+  ];
+
+  for (const cmd of blockedCommands) {
+    const reason = evaluateCommandLine(cmd, { branchResolver: featureBranchResolver });
+    assert.ok(reason, `Expected destructive wipe to be blocked: ${cmd}`);
+    assert.match(reason, /\[SDLC Guardrail\]/);
+  }
+});
+
+test("allows targeted rm -rf and PowerShell Remove-Item build artifact cleanups", () => {
+  const allowedCommands = [
+    "rm -rf bin obj dist .svelte-kit node_modules",
+    "rm -rf ./dist",
+    "rm -rf build/output",
+    "rm -Recurse -Force bin",
+    "rm -r .", // not forced
+    "Remove-Item -Recurse -Force bin,obj",
+    "Remove-Item -Recurse -Force ./dist",
+    "Remove-Item -Recurse -Force ./dist -Include *",
+    "Remove-Item -Path .svelte-kit -Recurse -Force",
+    "ri -Recurse -Force node_modules",
+    "Remove-Item -Recurse .", // not forced
+    'echo "rm -rf /"',
+  ];
+
+  for (const cmd of allowedCommands) {
+    assert.equal(
+      evaluateCommandLine(cmd, { branchResolver: featureBranchResolver }),
+      null,
+      `Expected safe targeted cleanup to be allowed: ${cmd}`
+    );
+  }
+});

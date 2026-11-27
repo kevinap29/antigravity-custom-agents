@@ -3,7 +3,8 @@
     Rollback / uninstall komponen bundle Antigravity Custom Agents secara aman dan idempoten.
 .DESCRIPTION
     Menghapus hanya 9 agent bundle, plugin antigravity-sdlc (termasuk 3 legacy skill bundle bila masih ada),
-    dan plugin RTK dari ~/.gemini tanpa menyentuh file pribadi, custom agent/skill lain, atau GEMINI.md milik user.
+    plugin RTK, serta deterministic gate scripts (verify-gate.mjs & verify-gate.ps1) dari ~/.gemini
+    tanpa menyentuh file pribadi, custom agent/skill lain, atau GEMINI.md milik user.
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 #>
@@ -13,12 +14,20 @@ param()
 
 $ErrorActionPreference = "Stop"
 
-$geminiDir = Join-Path $HOME ".gemini"
+$resolvedHome = if (-not [string]::IsNullOrWhiteSpace($env:ANTIGRAVITY_HOME)) {
+    $env:ANTIGRAVITY_HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    $HOME
+} else {
+    $env:USERPROFILE
+}
+$geminiDir = Join-Path $resolvedHome ".gemini"
 $configAgentsDir = Join-Path $geminiDir "config\agents"
 $antigravityAgentsDir = Join-Path $geminiDir "antigravity\agents"
 $configSkillsDir = Join-Path $geminiDir "config\skills"
 $configSdlcDir = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
 $configRtkDir = Join-Path $geminiDir "config\plugins\rtk"
+$scriptsDir = Join-Path $geminiDir "scripts"
 
 $bundleAgents = @(
     "db-data-engineer.md",
@@ -45,7 +54,7 @@ Write-Host "  Antigravity Bundle Uninstaller (Windows)                  " -Foreg
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Target direktori: $geminiDir`n" -ForegroundColor Gray
 
-Write-Host "[1/3] Menghapus 9 Custom Agents bundle..." -ForegroundColor Yellow
+Write-Host "[1/4] Menghapus 9 Custom Agents bundle..." -ForegroundColor Yellow
 foreach ($agent in $bundleAgents) {
     foreach ($dir in @($configAgentsDir, $antigravityAgentsDir)) {
         $targetPath = Join-Path $dir $agent
@@ -58,7 +67,7 @@ foreach ($agent in $bundleAgents) {
     }
 }
 
-Write-Host "`n[2/3] Menghapus Plugin antigravity-sdlc & legacy skills bundle..." -ForegroundColor Yellow
+Write-Host "`n[2/4] Menghapus Plugin antigravity-sdlc & legacy skills bundle..." -ForegroundColor Yellow
 $sdlcItem = Get-Item -LiteralPath $configSdlcDir -Force -ErrorAction SilentlyContinue
 if ($null -ne $sdlcItem) {
     Remove-Item -LiteralPath $configSdlcDir -Recurse -Force
@@ -75,12 +84,23 @@ foreach ($skill in $bundleSkills) {
     }
 }
 
-Write-Host "`n[3/3] Menghapus Plugin RTK bundle..." -ForegroundColor Yellow
+Write-Host "`n[3/4] Menghapus Plugin RTK bundle..." -ForegroundColor Yellow
 $rtkItem = Get-Item -LiteralPath $configRtkDir -Force -ErrorAction SilentlyContinue
 if ($null -ne $rtkItem) {
     Remove-Item -LiteralPath $configRtkDir -Recurse -Force
     Write-Host "  [-] Dihapus: $configRtkDir" -ForegroundColor Gray
     $removedCount++
+}
+
+Write-Host "`n[4/4] Menghapus Deterministic Gate scripts bundle..." -ForegroundColor Yellow
+foreach ($gateScript in @("verify-gate.mjs", "verify-gate.ps1")) {
+    $gatePath = Join-Path $scriptsDir $gateScript
+    $gateItem = Get-Item -LiteralPath $gatePath -Force -ErrorAction SilentlyContinue
+    if ($null -ne $gateItem) {
+        Remove-Item -LiteralPath $gatePath -Force
+        Write-Host "  [-] Dihapus: $gatePath" -ForegroundColor Gray
+        $removedCount++
+    }
 }
 
 Write-Host "`n============================================================" -ForegroundColor Green

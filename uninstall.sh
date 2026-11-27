@@ -3,14 +3,16 @@ set -euo pipefail
 
 # Rollback / uninstall komponen bundle Antigravity Custom Agents secara aman dan idempoten.
 # Hanya menghapus 9 agent bundle, plugin antigravity-sdlc (termasuk 3 legacy skill bundle),
-# dan plugin RTK tanpa menyentuh file lain di ~/.gemini.
+# plugin RTK, serta verify-gate.mjs & verify-gate.ps1 tanpa menyentuh file lain di ~/.gemini.
 
-GEMINI_DIR="${HOME}/.gemini"
+RESOLVED_HOME="${ANTIGRAVITY_HOME:-${HOME}}"
+GEMINI_DIR="${RESOLVED_HOME}/.gemini"
 CONFIG_AGENTS_DIR="${GEMINI_DIR}/config/agents"
 ANTIGRAVITY_AGENTS_DIR="${GEMINI_DIR}/antigravity/agents"
 CONFIG_SKILLS_DIR="${GEMINI_DIR}/config/skills"
 CONFIG_SDLC_DIR="${GEMINI_DIR}/config/plugins/antigravity-sdlc"
 CONFIG_RTK_DIR="${GEMINI_DIR}/config/plugins/rtk"
+SCRIPTS_DIR="${GEMINI_DIR}/scripts"
 
 BUNDLE_AGENTS=(
   "db-data-engineer.md"
@@ -43,7 +45,7 @@ echo -e "${CYAN}============================================================${NC
 echo "Target direktori: ${GEMINI_DIR}"
 echo ""
 
-echo -e "${YELLOW}[1/3] Menghapus 9 Custom Agents bundle...${NC}"
+echo -e "${YELLOW}[1/4] Menghapus 9 Custom Agents bundle...${NC}"
 for agent in "${BUNDLE_AGENTS[@]}"; do
   for dir in "${CONFIG_AGENTS_DIR}" "${ANTIGRAVITY_AGENTS_DIR}"; do
     target_path="${dir}/${agent}"
@@ -56,7 +58,7 @@ for agent in "${BUNDLE_AGENTS[@]}"; do
 done
 
 echo ""
-echo -e "${YELLOW}[2/3] Menghapus Plugin antigravity-sdlc & legacy skills bundle...${NC}"
+echo -e "${YELLOW}[2/4] Menghapus Plugin antigravity-sdlc & legacy skills bundle...${NC}"
 if [[ -e "${CONFIG_SDLC_DIR}" || -L "${CONFIG_SDLC_DIR}" ]]; then
   rm -rf "${CONFIG_SDLC_DIR}"
   echo "  [-] Dihapus: ${CONFIG_SDLC_DIR}"
@@ -72,12 +74,23 @@ for skill in "${BUNDLE_SKILLS[@]}"; do
 done
 
 echo ""
-echo -e "${YELLOW}[3/3] Menghapus Plugin RTK bundle...${NC}"
+echo -e "${YELLOW}[3/4] Menghapus Plugin RTK bundle...${NC}"
 if [[ -e "${CONFIG_RTK_DIR}" || -L "${CONFIG_RTK_DIR}" ]]; then
   rm -rf "${CONFIG_RTK_DIR}"
   echo "  [-] Dihapus: ${CONFIG_RTK_DIR}"
   removed_count=$((removed_count + 1))
 fi
+
+echo ""
+echo -e "${YELLOW}[4/4] Menghapus Deterministic Gate scripts bundle...${NC}"
+for gate_script in "verify-gate.mjs" "verify-gate.ps1"; do
+  gate_path="${SCRIPTS_DIR}/${gate_script}"
+  if [[ -e "${gate_path}" || -L "${gate_path}" ]]; then
+    rm -f "${gate_path}"
+    echo "  [-] Dihapus: ${gate_path}"
+    removed_count=$((removed_count + 1))
+  fi
+done
 
 echo ""
 echo -e "${GREEN}============================================================${NC}"

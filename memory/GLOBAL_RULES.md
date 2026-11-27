@@ -1,7 +1,7 @@
 # Global Engineering Rules
 - **Git Branching:** Never push directly to `main`, `master`, or `develop`; always work on feature branches and open a PR.
 - **DB-First Mandatory:** Never use EF Core Code-First migrations; no direct SQL execution by agents (`sqlite3`, `sqlcmd`, etc.); use LINQ/EF if already present in the project (no raw SQL template strings).
-- **UI Dropdown Component:** Whenever implementing an HTML dropdown element, ALWAYS build a **custom searchable dropdown component** with a built-in search input inside the dropdown panel and **debounced** filtering/querying (e.g., 250–300ms) instead of a plain native `<select>`.
+- **UI Dropdown Component (Pragmatic KISS):** For **dynamic / API-backed / master-data** dropdowns or lists with **`> 7` options**, ALWAYS build/reuse a **custom searchable dropdown** with an internal search input and **debounced** filtering (250–300ms). For small static option sets (`<= 7` items, e.g., Status, Sort, Page Size), a native `<select>` or radio/segmented control is allowed.
 - **Testing & Safety:** Write targeted unit tests for every behavioral change; never weaken assertions to pass tests. Prefer explicit typing, structured logging, parameterized queries, atomic DB mutations (transactions / affected-row checks), proper `IDisposable` cleanup, and zero hardcoded secrets.
 - **DRY, KISS & Zero Regression:** Check existing helpers/validators before adding new ones; keep changes strictly scoped and preserve existing contracts.
 - **Token Efficiency & Doc Sync:** Read only task-relevant files (avoid full-repo scans unless necessary); update or prune stale docs/comments when adding, changing, or deleting features.

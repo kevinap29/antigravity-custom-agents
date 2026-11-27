@@ -50,6 +50,113 @@ const DOTNET_EF_VALUE_FLAGS = new Set([
   "--msbuildprojectextensionspath",
 ]);
 
+const GIT_CHECKOUT_VALUE_FLAGS = new Set([
+  "-b",
+  "-B",
+  "--orphan",
+  "--conflict",
+  "-U",
+  "--unified",
+  "--pathspec-from-file",
+]);
+
+const GIT_RESTORE_VALUE_FLAGS = new Set([
+  "-s",
+  "--source",
+  "--conflict",
+  "--pathspec-from-file",
+]);
+
+const GIT_BRANCH_VALUE_FLAGS = new Set([
+  "--contains",
+  "--no-contains",
+  "--merged",
+  "--no-merged",
+  "--points-at",
+  "--sort",
+  "--format",
+  "-u",
+  "--set-upstream-to",
+]);
+
+const PS_DELETE_COMMANDS = new Set([
+  "remove-item",
+  "ri",
+  "del",
+  "erase",
+  "rd",
+  "rmdir",
+]);
+
+const PS_DELETE_IGNORED_VALUE_FLAGS = new Set([
+  "-exclude",
+  "-include",
+  "-filter",
+  "-stream",
+  "-credential",
+  "-erroraction",
+  "-ea",
+  "-warningaction",
+  "-wa",
+  "-informationaction",
+  "-infa",
+  "-outvariable",
+  "-ov",
+  "-errorvariable",
+  "-ev",
+]);
+
+const DANGEROUS_WIPE_EXACT_PATHS = new Set([
+  ".",
+  "..",
+  "./",
+  ".\\",
+  "../",
+  "..\\",
+  "/",
+  "\\",
+  "~",
+  "~/",
+  "~\\",
+  "*",
+  "/*",
+  "\\*",
+  "./*",
+  ".\\*",
+  "../*",
+  "..\\*",
+  "~/*",
+  "~\\*",
+  "$home",
+  "${home}",
+  "$env:userprofile",
+]);
+
+function isDotWorktreeTarget(raw) {
+  if (typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  return trimmed === "." || trimmed === "./" || trimmed === ".\\" || trimmed === ":/";
+}
+
+function isDangerousWipePath(raw) {
+  if (typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (DANGEROUS_WIPE_EXACT_PATHS.has(lower)) {
+    return true;
+  }
+  // Multiple slashes only (e.g. "//", "\\\")
+  if (/^[/\\]+$/.test(trimmed)) {
+    return true;
+  }
+  // Windows drive root (e.g. "C:", "C:\", "C:/", "D:\", "C:\*")
+  if (/^[a-zA-Z]:[/\\]*\*?$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
 function allow() {
   process.stdout.write(JSON.stringify({ decision: "allow" }) + "\n");
 }
@@ -402,6 +509,123 @@ function checkGitCommand(tokens, cwd, branchResolver, envOverrides = {}) {
     return null;
   }
 
+  if (subcmd === "checkout") {
+    let afterDoubleDash = false;
+    for (let j = i + 1; j < tokens.length; j++) {
+      const arg = tokens[j].text;
+      if (!afterDoubleDash && arg === "--") {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && GIT_CHECKOUT_VALUE_FLAGS.has(arg)) {
+        j++;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith("-")) {
+        continue;
+      }
+      if (isDotWorktreeTarget(arg)) {
+        return "[SDLC Guardrail] Destructive 'git checkout .' / 'git checkout -- .' discards all unstaged worktree changes and is blocked. Require explicit user confirmation.";
+      }
+    }
+    return null;
+  }
+
+  if (subcmd === "restore") {
+    let hasStaged = false;
+    let hasWorktree = false;
+    let afterDoubleDash = false;
+    const targets = [];
+
+    for (let j = i + 1; j < tokens.length; j++) {
+      const arg = tokens[j].text;
+      if (!afterDoubleDash && arg === "--") {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && GIT_RESTORE_VALUE_FLAGS.has(arg)) {
+        j++;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith("-")) {
+        if (arg === "--staged" || arg === "-S") {
+          hasStaged = true;
+        } else if (arg === "--worktree" || arg === "-W") {
+          hasWorktree = true;
+        } else if (/^-[a-zA-Z]+$/.test(arg)) {
+          if (arg.includes("S")) hasStaged = true;
+          if (arg.includes("W")) hasWorktree = true;
+        }
+        continue;
+      }
+      targets.push(arg);
+    }
+
+    const modifiesWorktree = hasWorktree || !hasStaged;
+    if (modifiesWorktree && targets.some((t) => isDotWorktreeTarget(t))) {
+      return "[SDLC Guardrail] Destructive 'git restore .' discards all unstaged worktree changes and is blocked. Use targeted file paths or require explicit user confirmation.";
+    }
+    return null;
+  }
+
+  if (subcmd === "branch") {
+    let hasDelete = false;
+    let hasForce = false;
+    let hasForceDelete = false;
+    let afterDoubleDash = false;
+    const branches = [];
+
+    for (let j = i + 1; j < tokens.length; j++) {
+      const arg = tokens[j].text;
+      if (!afterDoubleDash && arg === "--") {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && GIT_BRANCH_VALUE_FLAGS.has(arg)) {
+        j++;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith("-")) {
+        if (arg === "-D") {
+          hasForceDelete = true;
+        } else if (arg === "-d" || arg === "--delete") {
+          hasDelete = true;
+        } else if (arg === "-f" || arg === "--force") {
+          hasForce = true;
+        } else if (/^-[a-zA-Z]+$/.test(arg)) {
+          if (arg.includes("D")) hasForceDelete = true;
+          if (arg.includes("d")) hasDelete = true;
+          if (arg.includes("f")) hasForce = true;
+        }
+        continue;
+      }
+      branches.push(arg);
+    }
+
+    if (hasForceDelete || (hasDelete && hasForce)) {
+      for (const branch of branches) {
+        const normalized = branch.replace(/^refs\/heads\//i, "").trim().toLowerCase();
+        if (PROTECTED_BRANCHES.has(normalized)) {
+          return `[SDLC Guardrail] Force-deleting protected branch '${branch}' is blocked.`;
+        }
+      }
+    }
+    return null;
+  }
+
+  if (subcmd === "stash") {
+    for (let j = i + 1; j < tokens.length; j++) {
+      const arg = tokens[j].text;
+      if (arg === "--") break;
+      if (arg.startsWith("-")) continue;
+      if (arg.toLowerCase() === "clear") {
+        return "[SDLC Guardrail] Destructive 'git stash clear' wipes all stashed work and is blocked. Require explicit user confirmation.";
+      }
+      break;
+    }
+    return null;
+  }
+
   if (subcmd !== "push") {
     return null;
   }
@@ -505,6 +729,104 @@ function checkDotnetEf(tokens) {
   return null;
 }
 
+function checkRmCommand(tokens) {
+  let hasRecursive = false;
+  let hasForce = false;
+  let afterDoubleDash = false;
+  const targets = [];
+
+  for (let i = 1; i < tokens.length; i++) {
+    const arg = tokens[i].text;
+    if (!afterDoubleDash && arg === "--") {
+      afterDoubleDash = true;
+      continue;
+    }
+    if (!afterDoubleDash && arg.startsWith("-") && arg !== "-") {
+      if (arg === "--recursive") {
+        hasRecursive = true;
+      } else if (arg === "--force") {
+        hasForce = true;
+      } else if (/^-[a-zA-Z]+$/.test(arg)) {
+        if (arg.includes("r") || arg.includes("R")) hasRecursive = true;
+        if (arg.includes("f")) hasForce = true;
+      }
+      continue;
+    }
+    targets.push(arg);
+  }
+
+  if (hasRecursive && hasForce) {
+    for (const target of targets) {
+      if (isDangerousWipePath(target)) {
+        return `[SDLC Guardrail] Destructive recursive force delete ('rm -rf ${target}') is blocked to prevent catastrophic workspace/filesystem loss.`;
+      }
+    }
+  }
+
+  return null;
+}
+
+function checkPowerShellDeleteCommand(tokens) {
+  let hasRecursive = false;
+  let hasForce = false;
+  const rawTargets = [];
+
+  for (let i = 1; i < tokens.length; i++) {
+    const arg = tokens[i].text;
+    const lower = arg.toLowerCase();
+
+    if (lower === "-path" || lower === "-literalpath") {
+      if (i + 1 < tokens.length) {
+        rawTargets.push(tokens[++i].text);
+      }
+      continue;
+    }
+
+    if (lower.startsWith("-path:") || lower.startsWith("-literalpath:")) {
+      const colonIdx = arg.indexOf(":");
+      const boundTarget = arg.slice(colonIdx + 1);
+      if (boundTarget.length > 0) {
+        rawTargets.push(boundTarget);
+      }
+      continue;
+    }
+
+    if (PS_DELETE_IGNORED_VALUE_FLAGS.has(lower)) {
+      i++;
+      continue;
+    }
+
+    if (arg.startsWith("-") && arg !== "-") {
+      const [flagName, flagVal] = lower.split(":");
+      const isDisabled = flagVal === "false" || flagVal === "$false";
+      if (!isDisabled && flagName.length >= 2) {
+        if ("-recurse".startsWith(flagName)) {
+          hasRecursive = true;
+        } else if ("-force".startsWith(flagName)) {
+          hasForce = true;
+        }
+      }
+      continue;
+    }
+
+    rawTargets.push(arg);
+  }
+
+  if (hasRecursive && hasForce) {
+    for (const rawTarget of rawTargets) {
+      const parts = rawTarget.split(",");
+      for (const part of parts) {
+        const candidate = part.trim();
+        if (isDangerousWipePath(candidate)) {
+          return `[SDLC Guardrail] Destructive recursive force delete ('${tokens[0].text} -Recurse -Force ${candidate}') is blocked to prevent catastrophic workspace/filesystem loss.`;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 const DIR_CHANGE_COMMANDS = new Set(["cd", "set-location", "sl", "pushd"]);
 
 function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
@@ -553,6 +875,16 @@ function evaluateCommandLine(commandLine, optionsOrDepth = {}, depthArg = 0) {
 
     if (exe === "dotnet") {
       const reason = checkDotnetEf(tokens);
+      if (reason) return reason;
+    }
+
+    if (exe === "rm") {
+      const reason = checkRmCommand(tokens) || checkPowerShellDeleteCommand(tokens);
+      if (reason) return reason;
+    }
+
+    if (PS_DELETE_COMMANDS.has(exe)) {
+      const reason = checkPowerShellDeleteCommand(tokens);
       if (reason) return reason;
     }
 

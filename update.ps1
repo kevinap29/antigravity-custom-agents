@@ -70,7 +70,14 @@ if ((Test-Path $gitDir) -and ($null -ne $gitCmd)) {
 }
 
 # Baca profil add-on eksisting (~/.gemini/.addons.json)
-$addonsProfilePath = Join-Path (Join-Path $HOME ".gemini") ".addons.json"
+$resolvedHome = if (-not [string]::IsNullOrWhiteSpace($env:ANTIGRAVITY_HOME)) {
+    $env:ANTIGRAVITY_HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    $HOME
+} else {
+    $env:USERPROFILE
+}
+$addonsProfilePath = Join-Path (Join-Path $resolvedHome ".gemini") ".addons.json"
 $enableMemory = $WithMemory.IsPresent
 $enableTunnel = $WithTunnel.IsPresent
 $resolvedQdrantMode = $QdrantMode

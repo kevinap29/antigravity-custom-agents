@@ -62,7 +62,7 @@ Use for RAM-efficient multi-stage `Dockerfile`, Portainer-friendly `docker-compo
 - **Pre-merge quality & regression audit (`qa-code-reviewer`):**
   ```text
   @qa-code-reviewer Audit changes on the current branch against `main`.
-  Verify API vs SvelteKit DTO contract sync, check for N+1 queries and IDisposable leaks, and run `verify-gate.ps1` / `dotnet test` / `npm run check`.
+  Verify API vs SvelteKit DTO contract sync, check for N+1 queries and IDisposable leaks, and run `verify-gate.mjs` / `dotnet test` / `npm run check`.
   ```
 - **Execute PR bot/reviewer comments (`pr-review-fixer`):**
   ```text

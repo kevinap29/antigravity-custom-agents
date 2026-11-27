@@ -66,7 +66,8 @@ else
   echo "[i] Bukan repositori Git (mode arsip/ZIP); langsung menyinkronkan file lokal."
 fi
 
-ADDONS_PROFILE="${HOME}/.gemini/.addons.json"
+RESOLVED_HOME="${ANTIGRAVITY_HOME:-${HOME}}"
+ADDONS_PROFILE="${RESOLVED_HOME}/.gemini/.addons.json"
 if [[ -f "${ADDONS_PROFILE}" ]]; then
   if grep -Eq '"centralMemory"[[:space:]]*:[[:space:]]*true' "${ADDONS_PROFILE}"; then
     WITH_MEMORY=true

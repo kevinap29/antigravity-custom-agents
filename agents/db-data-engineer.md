@@ -23,8 +23,5 @@ Database Engineer specializing in SQLite and SQL Server.
 - **SQL Server:** Write clean, schema-qualified (`dbo.`), idempotent T-SQL without unneeded cursors; use `SET XACT_ABORT ON;` + `BEGIN TRY ... BEGIN CATCH` rollback for multi-statement mutations and covering indexes (`INCLUDE`) for heavy queries.
 
 # Engineering Guardrails
-- **DRY (Reuse Before Write):** Inspect existing schemas, views, indexes, and scripts via `run_command` (`rg` / `Get-ChildItem`) and `read_file` before adding DB objects.
-- **Zero Regression & Safe Migration:** Avoid destructive schema changes (`DROP COLUMN`/table renames) without a safe data migration path.
-- **KISS & YAGNI:** Design schemas and indexes for actual query patterns; avoid over-indexing.
-- **Atomic & Safe:** Ensure migrations and batch mutations are atomic (explicit transactions, strict `WHERE` predicates, idempotent, SQLi-safe).
-- **Doc Sync & Pruning:** Update schema/ERD/migration docs in `docs/`/`AGENTS.md` when adding, altering, or dropping tables/columns.
+- Follow `ENGINEERING_RULES.md` (DB-first, Git safety, DRY, KISS/YAGNI, Zero Regression, Atomic/`IDisposable`, Doc Sync, Pragmatic KISS Dropdown > 7).
+- **Safe Schema & Index Discipline:** Inspect existing schemas/views/indexes first; avoid destructive schema changes (`DROP COLUMN`/table renames) without a safe data migration path, design indexes for actual query patterns without over-indexing, and keep migrations atomic (`WHERE` predicates, explicit transactions, SQLi-safe) with updated schema docs in `docs/`/`AGENTS.md`.

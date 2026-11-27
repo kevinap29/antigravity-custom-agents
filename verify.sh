@@ -4,7 +4,8 @@ set -euo pipefail
 # Verifikasi kesehatan instalasi Antigravity Custom Agents, SDLC Plugin, RTK Plugin,
 # Deterministic Gate, GEMINI.md, serta Add-ons aktif (~/.gemini/.addons.json).
 
-GEMINI_DIR="${HOME}/.gemini"
+RESOLVED_HOME="${ANTIGRAVITY_HOME:-${HOME}}"
+GEMINI_DIR="${RESOLVED_HOME}/.gemini"
 CONFIG_AGENTS_DIR="${GEMINI_DIR}/config/agents"
 ANTIGRAVITY_AGENTS_DIR="${GEMINI_DIR}/antigravity/agents"
 CONFIG_SDLC_DIR="${GEMINI_DIR}/config/plugins/antigravity-sdlc"
@@ -33,6 +34,7 @@ EXPECTED_SDLC_FILES=(
   "hooks.json"
   "hooks/sdlc-guardrails.mjs"
   "rules/ENGINEERING_RULES.md"
+  "scripts/verify-gate.mjs"
   "scripts/verify-gate.ps1"
   "skills/dotnet-webforms-patterns/SKILL.md"
   "skills/frontend-mobile-patterns/SKILL.md"
@@ -69,7 +71,7 @@ NC='\033[0m'
 ok_count=0
 warn_count=0
 fail_count=0
-total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SDLC_FILES[@]} + ${#EXPECTED_RTK_FILES[@]} + 2 ))
+total_required=$(( (${#EXPECTED_AGENTS[@]} * 2) + ${#EXPECTED_SDLC_FILES[@]} + ${#EXPECTED_RTK_FILES[@]} + 3 ))
 if [[ "${CENTRAL_MEMORY_ENABLED}" == "true" ]]; then
   total_required=$((total_required + 4))
   if [[ "${QDRANT_MODE}" == "local" || "${QDRANT_MODE}" == "localhost" ]]; then
@@ -159,6 +161,7 @@ fi
 
 echo ""
 echo -e "${CYAN}[5/6] Memeriksa Core Deterministic Gate & Global Rules...${NC}"
+check_file "${SCRIPTS_DIR}/verify-gate.mjs" "scripts/verify-gate.mjs" || true
 check_file "${SCRIPTS_DIR}/verify-gate.ps1" "scripts/verify-gate.ps1" || true
 check_file "${GEMINI_MD_PATH}" "GEMINI.md" || true
 

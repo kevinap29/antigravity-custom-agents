@@ -14,7 +14,14 @@ param()
 
 $ErrorActionPreference = "Stop"
 
-$geminiDir = Join-Path $HOME ".gemini"
+$resolvedHome = if (-not [string]::IsNullOrWhiteSpace($env:ANTIGRAVITY_HOME)) {
+    $env:ANTIGRAVITY_HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    $HOME
+} else {
+    $env:USERPROFILE
+}
+$geminiDir = Join-Path $resolvedHome ".gemini"
 $configAgentsDir = Join-Path $geminiDir "config\agents"
 $antigravityAgentsDir = Join-Path $geminiDir "antigravity\agents"
 $configSdlcDir = Join-Path $geminiDir "config\plugins\antigravity-sdlc"
@@ -43,6 +50,7 @@ $expectedSdlcFiles = @(
     "hooks.json",
     "hooks\sdlc-guardrails.mjs",
     "rules\ENGINEERING_RULES.md",
+    "scripts\verify-gate.mjs",
     "scripts\verify-gate.ps1",
     "skills\dotnet-webforms-patterns\SKILL.md",
     "skills\frontend-mobile-patterns\SKILL.md",
@@ -76,7 +84,7 @@ if (Test-Path $addonsProfilePath) {
 $okCount = 0
 $warnCount = 0
 $failCount = 0
-$totalRequired = ($expectedAgents.Count * 2) + $expectedSdlcFiles.Count + $expectedRtkFiles.Count + 2
+$totalRequired = ($expectedAgents.Count * 2) + $expectedSdlcFiles.Count + $expectedRtkFiles.Count + 3
 if ($centralMemoryEnabled) {
     $totalRequired += 4
     if ($qdrantMode -eq "local" -or $qdrantMode -eq "localhost") {
@@ -171,6 +179,7 @@ if ($null -ne $rtkCmd) {
 }
 
 Write-Host "`n[5/7] Memeriksa Core Deterministic Gate & Global Rules..." -ForegroundColor Cyan
+if (Test-BundleFile -Path (Join-Path $scriptsDir "verify-gate.mjs") -Label "scripts\verify-gate.mjs") { $okCount++ } else { $failCount++ }
 if (Test-BundleFile -Path (Join-Path $scriptsDir "verify-gate.ps1") -Label "scripts\verify-gate.ps1") { $okCount++ } else { $failCount++ }
 if (Test-BundleFile -Path $geminiMdPath -Label "GEMINI.md") { $okCount++ } else { $failCount++ }
 
@@ -253,7 +262,7 @@ foreach ($tool in @("gitleaks", "trivy")) {
     if ($null -ne $cmd) {
         Write-Host "  [OK]   Scanner '$tool' tersedia ($($cmd.Source))" -ForegroundColor Green
     } else {
-        Write-Host "  [INFO] Scanner '$tool' belum terpasang (opsional untuk verify-gate.ps1)" -ForegroundColor Gray
+        Write-Host "  [INFO] Scanner '$tool' belum terpasang (opsional untuk verify-gate.mjs)" -ForegroundColor Gray
     }
 }
 Write-Host "  [SKIP] Scanner 'semgrep' tidak didukung native di Windows" -ForegroundColor DarkYellow

@@ -71,17 +71,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_AGENTS="${SCRIPT_DIR}/agents"
 SOURCE_PLUGINS_SDLC="${SCRIPT_DIR}/plugins/antigravity-sdlc"
 SOURCE_PLUGINS_RTK="${SCRIPT_DIR}/plugins/rtk"
-SOURCE_VERIFY_GATE="${SOURCE_PLUGINS_SDLC}/scripts/verify-gate.ps1"
+SOURCE_VERIFY_GATE_MJS="${SOURCE_PLUGINS_SDLC}/scripts/verify-gate.mjs"
+SOURCE_VERIFY_GATE_PS1="${SOURCE_PLUGINS_SDLC}/scripts/verify-gate.ps1"
 SOURCE_MCP="${SCRIPT_DIR}/mcp"
 SOURCE_MEMORY="${SCRIPT_DIR}/memory"
-SOURCE_GEMINI_MD="${SCRIPT_DIR}/GEMINI.md"
+SOURCE_GEMINI_MD="${SCRIPT_DIR}/templates/GEMINI.md"
 
-if [[ ! -d "${SOURCE_AGENTS}" || ! -d "${SOURCE_PLUGINS_SDLC}" || ! -d "${SOURCE_PLUGINS_RTK}" || ! -f "${SOURCE_VERIFY_GATE}" || ! -f "${SOURCE_GEMINI_MD}" ]]; then
+if [[ ! -d "${SOURCE_AGENTS}" || ! -d "${SOURCE_PLUGINS_SDLC}" || ! -d "${SOURCE_PLUGINS_RTK}" || ! -f "${SOURCE_VERIFY_GATE_MJS}" || ! -f "${SOURCE_VERIFY_GATE_PS1}" || ! -f "${SOURCE_GEMINI_MD}" ]]; then
   echo "[ERROR] Struktur folder Core bundle tidak lengkap di ${SCRIPT_DIR}." >&2
   exit 1
 fi
 
-GEMINI_DIR="${HOME}/.gemini"
+RESOLVED_HOME="${ANTIGRAVITY_HOME:-${HOME}}"
+GEMINI_DIR="${RESOLVED_HOME}/.gemini"
 TARGET_CONFIG_AGENTS="${GEMINI_DIR}/config/agents"
 TARGET_ANTIGRAVITY_AGENTS="${GEMINI_DIR}/antigravity/agents"
 TARGET_CONFIG_SKILLS="${GEMINI_DIR}/config/skills"
@@ -245,11 +247,13 @@ else
   echo "      Pasang binary 'rtk' via: brew install rtk / cargo install --git https://github.com/rtk-ai/rtk"
 fi
 
-# 4. Core Script: verify-gate.ps1
+# 4. Core Scripts: verify-gate.mjs & verify-gate.ps1
 echo ""
-echo -e "${YELLOW}[CORE 4/5] Menginstal Deterministic Gate Script (verify-gate.ps1)...${NC}"
-cp -f "${SOURCE_VERIFY_GATE}" "${TARGET_SCRIPTS}/verify-gate.ps1"
-echo -e "  ${GREEN}[OK] verify-gate.ps1 disalin ke ${TARGET_SCRIPTS}/verify-gate.ps1.${NC}"
+echo -e "${YELLOW}[CORE 4/5] Menginstal Deterministic Gate Scripts (verify-gate.mjs & verify-gate.ps1)...${NC}"
+cp -f "${SOURCE_VERIFY_GATE_MJS}" "${TARGET_SCRIPTS}/verify-gate.mjs"
+cp -f "${SOURCE_VERIFY_GATE_PS1}" "${TARGET_SCRIPTS}/verify-gate.ps1"
+chmod +x "${TARGET_SCRIPTS}/verify-gate.mjs" "${TARGET_CONFIG_PLUGINS_SDLC}/scripts/verify-gate.mjs" 2>/dev/null || true
+echo -e "  ${GREEN}[OK] verify-gate.mjs & verify-gate.ps1 disalin ke ${TARGET_SCRIPTS}.${NC}"
 
 # 5. GEMINI.md
 echo ""
@@ -563,7 +567,7 @@ echo -e "${GREEN}  - Agents (Config)      : ${TARGET_CONFIG_AGENTS}${NC}"
 echo -e "${GREEN}  - Agents (Antigravity) : ${TARGET_ANTIGRAVITY_AGENTS}${NC}"
 echo -e "${GREEN}  - Plugin (SDLC)        : ${TARGET_CONFIG_PLUGINS_SDLC}${NC}"
 echo -e "${GREEN}  - Plugin (RTK)         : ${TARGET_CONFIG_PLUGINS_RTK}${NC}"
-echo -e "${GREEN}  - Deterministic Gate   : ${TARGET_SCRIPTS}/verify-gate.ps1${NC}"
+echo -e "${GREEN}  - Deterministic Gate   : ${TARGET_SCRIPTS}/verify-gate.mjs & verify-gate.ps1${NC}"
 echo -e "${GREEN}  - Global Rules         : ${TARGET_GEMINI_MD}${NC}"
 echo -e "${GREEN}  - Add-ons Profile      : ${ADDONS_PROFILE} (responseLanguage=${resolved_response_language}, centralMemory=${enable_memory}, qdrantMode=${resolved_qdrant_mode:-null}, sshTunnel=false)${NC}"
 echo ""

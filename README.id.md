@@ -44,11 +44,11 @@ chmod +x install.sh && ./install.sh
   - **Deterministic `PreToolUse` Guardrails (`hooks/sdlc-guardrails.mjs`):** Hook Node.js zero-dependency yang memblokir `git push` ke `main`/`master`/`develop`, eksekusi langsung CLI DB (`sqlcmd`, `sqlite3`, `psql`, `mysql`), dan migrasi EF Core Code-First (`dotnet ef migrations` / `dotnet ef database update`). Otomatis dinonaktifkan dengan aman jika `node` belum terpasang.
 - **Plugin RTK Independen (`plugins/rtk/`):** Plugin 3rd-party penghemat token (`rtk hook antigravity`) dipisahkan agar bisa diaktifkan/update secara independen.
 - **Arsitektur SDLC v1.5+ (`sdlc-team-lead`, `ui-prototyper`, `frontend-mobile-dev`, `qa-code-reviewer`):**
-  - **4-Lane Complexity Matrix:** `Lane 0 (docs)` langsung oleh Team Lead, `Lane 1 (micro < 30 baris)` skip file plan dengan `Model: flash`, dan `Lane 2/3 (standard/complex)` alur penuh Phase 0–5.
+  - **5-Lane Complexity Matrix:** `Lane 0 (docs)` langsung oleh Team Lead, `Lane 1A (micro < 30 baris)` skip file plan dengan `Model: flash`, `Lane 1B (small <= 100 baris, tanpa DB/DTO/Auth)` skip plan & ceremony dengan `Model: inherit` + `verify-gate.mjs`, dan `Lane 2/3 (standard/complex)` alur penuh Phase 0–5.
   - **Contract Freeze Gate:** Eksekusi paralel hanya diizinkan setelah kontrak DTO Phase 0 matang & lolos Ambiguity Gate, dengan batas **maksimal 2 subagent paralel**.
   - **Conditional Prototype Fidelity & Package Alignment:** Phase 1 tetap opsional (skip untuk backend-only/minor task). Namun jika prototype dibuat (`_prototypes/<feature-slug>.html`), `ui-prototyper` menyamakan CSS/icon/chart package proyek + *Component Mapping Note*, diikuti *Prototype Approval Gate*, konversi 1:1 oleh `frontend-mobile-dev`, dan *Prototype Parity Audit* oleh `qa-code-reviewer`.
   - **Progressive Model Escalation:** Jika `qa-code-reviewer` memberi tag `[CRITICAL][ESCALATE_MODEL]` atau gagal di iterasi ke-2 pada model `flash`, Team Lead otomatis men-spawn subagent baru dengan kelas model lebih tinggi (`flash` → `inherit` → `pro`).
-- **Deterministic Quality & Security Gate (`plugins/antigravity-sdlc/scripts/verify-gate.ps1`):** Single source of truth untuk auto-detect `.NET` (Core/6–11, MAUI Blazor + unit tests, Legacy `.NET Framework` via `MSBuild`), `Node/SvelteKit` (`npm run check`/`build`/`test` dengan deteksi Vitest), `Python` (`pytest`), serta static security scanner (`gitleaks`, `trivy`, dan `semgrep` di Unix/macOS). Dibundel dalam `antigravity-sdlc` agar bisa diakses agent QA di sandbox dan otomatis di-mirror oleh installer ke `~/.gemini/scripts/verify-gate.ps1` untuk pemakaian CLI.
+- **Deterministic Quality & Security Gate (`plugins/antigravity-sdlc/scripts/verify-gate.mjs` + wrapper `verify-gate.ps1`):** Single source of truth lintas-platform (Node.js) untuk auto-detect `.NET` (Core/6–11, MAUI Blazor + unit tests, Legacy `.NET Framework` via `MSBuild`), `Node/SvelteKit` (monorepo-aware `npm run check`/`build`/`test` dengan deteksi Vitest), `Python` (`pytest`), serta static security scanner (`gitleaks`, `trivy`, dan `semgrep` di Unix/macOS). Dibundel dalam `antigravity-sdlc` agar bisa diakses agent QA di sandbox dan otomatis di-mirror oleh installer ke `~/.gemini/scripts/` untuk pemakaian CLI.
 - **Central Memory MCP Opsional (`mcp/central_memory_mcp.py` + Qdrant):** Memori semantik lintas sesi (`BAAI/bge-small-en-v1.5` via `fastembed` lokal CPU + Qdrant 3 mode: Local Embedded / Localhost Server / Remote VPS, proteksi staleness `git_tree_hash`), lengkap dengan auto-reconnecting SSH tunnel opsional untuk jaringan kantor/restricted.
 - **Graphify Code-Graph Lookup Opsional (`sdlc-team-lead` & `qa-code-reviewer`):** Peta struktur kode intra-repo untuk task `Lane 2/3` (otomatis skip jika MCP `graphify` maupun `graphify-out/GRAPH_REPORT.md` tidak ada). Membaca `GRAPH_REPORT.md` / query MCP untuk god nodes, helper DRY, dan blast radius sebelum scan file mentah, sementara `templates/.antigravityignore` mengabaikan artefak berat (`graph.json`, `*.html`, `cache/`).
 - **Modular Installer (Core + 3 Add-ons + OS/Env Preflight Check):** Otomatis mengecek OS & tool terpasang (mis. otomatis skip `semgrep` di Windows, cek `node` untuk guardrails), migrasi otomatis folder lama `config/skills/`, serta menyimpan pilihan Add-on di `~/.gemini/.addons.json` untuk `update` & `verify`.
@@ -79,7 +79,8 @@ antigravity-custom-agents/
 │   │   ├── rules/
 │   │   │   └── ENGINEERING_RULES.md # Aturan engineering statis (auto-update)
 │   │   ├── scripts/
-│   │   │   └── verify-gate.ps1 # Deterministic build/test + security scanner gate (single source of truth)
+│   │   │   ├── verify-gate.mjs # Deterministic build/test + security gate lintas-platform
+│   │   │   └── verify-gate.ps1 # Wrapper PowerShell backward-compatible untuk verify-gate.mjs
 │   │   └── skills/             # 3 domain skills terbundel
 │   │       ├── dotnet-webforms-patterns/SKILL.md
 │   │       ├── frontend-mobile-patterns/SKILL.md
@@ -91,20 +92,22 @@ antigravity-custom-agents/
 ├── scripts/                    # Skrip SSH Tunnel opsional
 │   ├── qdrant-tunnel.ps1       # Auto-reconnecting SSH tunnel (env/param-based)
 │   └── qdrant-tunnel-hidden.vbs# Launcher hidden Task Scheduler (%USERPROFILE%)
-├── tests/                      # Unit test Node.js zero-dependency (node --test)
-│   └── sdlc-guardrails.test.mjs # Regression test hook guardrail
+├── tests/                      # Unit test otomatis & rule-drift (node --test + unittest)
+│   ├── sdlc-guardrails.test.mjs # Regression test hook guardrail
+│   ├── verify-gate.test.mjs     # Test monorepo & deteksi stack verify-gate
+│   └── test_central_memory_mcp.py # Test Central Memory MCP + konsistensi rule
 ├── mcp/                        # Central Memory MCP Server (Opsional)
 │   ├── central_memory_mcp.py   # MCP Qdrant + fastembed (staleness git_tree_hash)
 │   └── requirements.txt        # Dependensi Python (qdrant-client[fastembed], fastmcp)
 ├── memory/                     # Referensi aturan & catatan arsitektur global (Opsional)
 │   ├── GLOBAL_RULES.md
 │   └── ARCHITECTURE_NOTES.md
-├── templates/                  # Starter template untuk proyek tim
+├── templates/                  # Starter template (proyek & profil pribadi)
 │   ├── .antigravityignore      # Ignore rule hemat token (bin/, obj/, node_modules/, dll.)
-│   └── AGENTS.md               # Template instruksi & konvensi proyek
+│   ├── AGENTS.md               # Template instruksi & konvensi proyek
+│   └── GEMINI.md               # Template Personal Developer Profile (dipasang ke ~/.gemini/)
 ├── CHEATSHEET.md / .id.md      # Contoh prompt nyata (English & Bahasa Indonesia)
 ├── mcp_config.example.json     # Contoh konfigurasi MCP (context7, fetch, sqlite, central_memory)
-├── GEMINI.md                   # Personal Developer Profile ramping (Tech Stack & Bahasa/Tone)
 ├── install.ps1                 # Modular Installer Windows (Core + Add-ons + Env Check)
 ├── install.sh                  # Modular Installer Linux / macOS (Core + Add-ons + Env Check)
 ├── verify.ps1 / verify.sh      # Health-check Core & Add-ons terpasang
@@ -127,7 +130,7 @@ antigravity-custom-agents/
 | `db-data-engineer` | Subagent | Desain skema SQL, migrasi DB-first, indexing, optimasi query SQLite (WAL mode, batch SQL) dan SQL Server (T-SQL, stored procedures). |
 | `devops-git-ops` | Subagent | Git workflow, GitHub Actions CI/CD, Dockerfile & Portainer Stack, Harbor registry, `systemd`, `cloudflared` di Ubuntu VPS, serta CI/CD build `.NET MAUI Hybrid Blazor`. |
 | `ui-prototyper` | Subagent | Pembuatan prototipe UI/UX interaktif standalone HTML yang selaras dengan CSS framework, icon, dan chart library proyek. |
-| `qa-code-reviewer` | Subagent | Audit kualitas kode, deterministic gate (`verify-gate.ps1`), sinkronisasi kontrak API, Prototype Parity, DRY, Zero Regression, Doc Sync, dan keamanan. |
+| `qa-code-reviewer` | Subagent | Audit kualitas kode, deterministic gate (`verify-gate.mjs` / `verify-gate.ps1`), sinkronisasi kontrak API, Prototype Parity, DRY, Zero Regression, Doc Sync, dan keamanan. |
 
 ### Daftar Plugin (2 Plugin Modular)
 
@@ -156,7 +159,7 @@ antigravity-custom-agents/
 
 ## 🚀 Cara Instalasi Otomatis — Modular (Core + Add-ons)
 
-Installer v2.0 memisahkan instalasi menjadi **Core** (wajib: `agents/`, `plugins/antigravity-sdlc/` termasuk `scripts/verify-gate.ps1`, `plugins/rtk/`, `GEMINI.md`) dan **3 Add-on Opsional** dengan **OS/Environment Preflight Check** otomatis:
+Installer v2.0+ memisahkan instalasi menjadi **Core** (wajib: `agents/`, `plugins/antigravity-sdlc/` termasuk `scripts/verify-gate.mjs` & `verify-gate.ps1`, `plugins/rtk/`, `templates/GEMINI.md`) dan **3 Add-on Opsional** dengan **OS/Environment Preflight Check** otomatis:
 - **Add-on A (Security Scanners):** `gitleaks` & `trivy` (via `winget` di Windows; `semgrep` otomatis di-skip di Windows karena tidak didukung native, namun tersedia di Linux/macOS).
 - **Add-on B (Central Memory MCP / Qdrant — 3 Mode):** Menyalin `mcp/` & `memory/`, cek Python 3 terlebih dahulu, opsi `.venv` + `requirements.txt`, serta pilihan 3 mode Qdrant:
   - **`Local` (Embedded — Default):** Zero-setup tanpa VPS/Docker/service; menyimpan vector di `~/.gemini/memory/qdrant_local` via env `QDRANT_LOCAL_PATH` (otomatis skip Add-on C).
@@ -210,7 +213,7 @@ bash install.sh --gemini-mode=skip --response-language="Bahasa Indonesia" --with
 winget install Gitleaks.Gitleaks
 winget install AquaSecurity.Trivy
 ```
-*(Bila belum terpasang, `verify-gate.ps1` tetap berjalan aman dan melewati scanner yang belum tersedia.)*
+*(Bila belum terpasang, `verify-gate.mjs` / `verify-gate.ps1` tetap berjalan aman dan melewati scanner yang belum tersedia.)*
 
 ### 2. Central Memory MCP (Python 3.13 + Qdrant)
 1. Pastikan **Python 3.13** (atau 3.10+) terpasang, lalu buat virtual environment di `%USERPROFILE%\.gemini\mcp\.venv`:
@@ -251,8 +254,8 @@ Jika Anda ingin menyalin file secara manual tanpa menjalankan skrip installer:
    - Linux / macOS: `~/.gemini/config/agents/` & `~/.gemini/antigravity/agents/` (boleh berupa symlink)
 2. **Salin plugin `antigravity-sdlc` (`plugins/antigravity-sdlc/`)** ke `%USERPROFILE%\.gemini\config\plugins\antigravity-sdlc\` atau `~/.gemini/config/plugins/antigravity-sdlc/`, lalu ganti `__HOOK_SCRIPT_PATH__` di `hooks.json` dengan path absolut ke `hooks/sdlc-guardrails.mjs` (set `"enabled": false` jika `node` tidak terpasang).
 3. **Salin folder plugin RTK (`plugins/rtk/`)** ke `%USERPROFILE%\.gemini\config\plugins\rtk\` atau `~/.gemini/config/plugins/rtk/`.
-4. **(Mirror CLI Opsional) Salin `plugins/antigravity-sdlc/scripts/verify-gate.ps1`** ke `~/.gemini/scripts/verify-gate.ps1` (agent QA di sandbox memakai salinan di `~/.gemini/config/plugins/antigravity-sdlc/scripts/verify-gate.ps1`).
-5. **Salin atau gabungkan `GEMINI.md`** ke `~/.gemini/GEMINI.md`.
+4. **(Mirror CLI Opsional) Salin `plugins/antigravity-sdlc/scripts/verify-gate.mjs` & `verify-gate.ps1`** ke `~/.gemini/scripts/` (agent QA di sandbox memakai salinan di `~/.gemini/config/plugins/antigravity-sdlc/scripts/`).
+5. **Salin atau gabungkan `templates/GEMINI.md`** ke `~/.gemini/GEMINI.md`.
 
 ---
 
